@@ -1,0 +1,88 @@
+# ============================================
+# Joplin Dev Workflow - .gitignore
+# ============================================
+
+# 個人配置檔（僅上傳 .example 版本）
+config/joplin-workflow.conf
+.config/
+
+# 測試產生的檔案和筆記
+test-notes/
+*.test.md
+*.tmp
+*.backup
+
+# Log 檔案
+*.log
+logs/
+debug.log
+
+# 系統檔案 (macOS)
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# 系統檔案 (Windows)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 系統檔案 (Linux)
+*~
+.directory
+.Trash-*
+
+# 編輯器和 IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Shell 腳本相關
+*.sh.bak
+*.sh~
+
+# 環境變數檔案（如果有敏感資訊）
+.env
+.env.local
+.env.*.local
+
+# macOS Finder 屬性
+.Spotlight-V100
+.Trashes
+
+# 臨時檔案
+temp/
+tmp/
+*.cache
+
+# 如果未來加入 Node.js 相關工具
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# 個人筆記和測試資料
+notes/
+my-notes/
+test-data/
+
+# 編譯或打包產物（如果未來有）
+dist/
+build/
+*.tar.gz
+*.zip
+
+# 敏感資訊
+secrets.txt
+token.txt
+api-keys.txt

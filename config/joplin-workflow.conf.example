@@ -1,0 +1,129 @@
+# ============================================
+# Joplin Dev Workflow Configuration
+# ============================================
+# 
+# This is the configuration file for joplin-dev-workflow CLI tools.
+# Copy this file to ~/.config/joplin-workflow/config and customize it.
+#
+# Installation will automatically create this file if it doesn't exist.
+#
+
+# --------------------------------------------
+# Notebook Configuration
+# --------------------------------------------
+# Specify the Joplin notebook names where notes will be created.
+# These notebooks must exist in your Joplin. Create them using:
+#   joplin mkbook "Your Notebook Name"
+
+# Notebook for daily TIL (Today I Learned) notes
+# Used by: til command
+NOTEBOOK_DAILY="Daily Notes"
+
+# Notebook for learning articles and technical posts
+# Used by: learn command
+NOTEBOOK_POST="Blog Posts"
+
+# Notebook for weekly reviews and progress planning
+# Used by: weekly command
+NOTEBOOK_WEEKLY="Weekly Reviews"
+
+
+# --------------------------------------------
+# Template Tags
+# --------------------------------------------
+# Tags automatically added to notes. Use space-separated hashtags.
+
+# Tags for TIL entries
+TEMPLATE_TAGS_TIL="#til #daily"
+
+# Tags for learning articles
+TEMPLATE_TAGS_LEARN="#article #draft"
+
+# Tags for weekly reviews
+TEMPLATE_TAGS_WEEKLY="#weekly #review"
+
+
+# --------------------------------------------
+# Date and Time Format
+# --------------------------------------------
+# Format strings using standard date command syntax.
+# See: https://man7.org/linux/man-pages/man1/date.1.html
+
+# Date format (e.g., 2026-02-16)
+DATE_FORMAT="%Y-%m-%d"
+
+# Time format (e.g., 14:30)
+TIME_FORMAT="%H:%M"
+
+# Weekly date range format
+WEEK_DATE_FORMAT="%Y-%m-%d"
+
+
+# --------------------------------------------
+# TIL Note Configuration
+# --------------------------------------------
+# Template for the daily TIL note title
+# {DATE} will be replaced with current date in DATE_FORMAT
+DAILY_NOTE_TITLE_TEMPLATE="{DATE} Daily Notes"
+
+# Example outputs:
+#   "2026-02-16 Daily Notes"
+#   "2026-02-16 Learning Log"
+
+
+# --------------------------------------------
+# Content Templates (Optional)
+# --------------------------------------------
+# You can customize note templates by editing the scripts directly,
+# or create template files in ~/.config/joplin-workflow/templates/
+# (Feature coming in future version)
+
+
+# --------------------------------------------
+# Sync Configuration
+# --------------------------------------------
+# Auto-sync after creating notes (true/false)
+AUTO_SYNC="true"
+
+# Sync timeout in seconds (0 = no timeout)
+SYNC_TIMEOUT="30"
+
+
+# --------------------------------------------
+# Advanced Options
+# --------------------------------------------
+
+# Show debug messages (true/false)
+DEBUG="false"
+
+# Clipboard command (auto-detected, usually don't need to change)
+# macOS: pbpaste
+# Linux: xclip -selection clipboard -o
+# Windows WSL: powershell.exe Get-Clipboard
+CLIPBOARD_CMD=""
+
+# Editor for viewing notes (leave empty to use Joplin default)
+# Examples: nano, vim, code, subl
+EDITOR=""
+
+
+# --------------------------------------------
+# Customization Tips
+# --------------------------------------------
+#
+# 1. Multiple Tags:
+#    TEMPLATE_TAGS_LEARN="#article #javascript #frontend #draft"
+#
+# 2. Different Date Format:
+#    DATE_FORMAT="%d/%m/%Y"  # 16/02/2026
+#    DATE_FORMAT="%B %d, %Y"  # February 16, 2026
+#
+# 3. Custom Notebook Structure:
+#    NOTEBOOK_DAILY="📅 Daily"
+#    NOTEBOOK_POST="📝 Articles"
+#    NOTEBOOK_WEEKLY="📊 Reviews"
+#
+# 4. Localized Note Titles:
+#    DAILY_NOTE_TITLE_TEMPLATE="{DATE} 學習記錄"  # Chinese
+#    DAILY_NOTE_TITLE_TEMPLATE="{DATE} Aprendizaje"  # Spanish
+#

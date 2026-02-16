@@ -1,0 +1,220 @@
+#!/bin/bash
+# ============================================
+# learn - Create learning article in Blog Posts
+# ============================================
+# 
+# Usage: learn "Article Title"
+# Reads content from clipboard and creates note in configured notebook.
+#
+
+set -e
+
+# --------------------------------------------
+# Configuration
+# --------------------------------------------
+
+CONFIG_FILE="$HOME/.config/joplin-workflow/config"
+
+# Default values (used if config not found)
+NOTEBOOK_POST="Blog Posts"
+TEMPLATE_TAGS_LEARN="#article #draft"
+DATE_FORMAT="%Y-%m-%d"
+TIME_FORMAT="%H:%M"
+AUTO_SYNC="true"
+DEBUG="false"
+
+# Load configuration if exists
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+elif [ "$DEBUG" = "true" ]; then
+    echo "⚠️  Config file not found, using defaults: $CONFIG_FILE"
+fi
+
+# --------------------------------------------
+# Helper Functions
+# --------------------------------------------
+
+print_error() {
+    echo "❌ $1" >&2
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_info() {
+    echo "💡 $1"
+}
+
+debug_log() {
+    if [ "$DEBUG" = "true" ]; then
+        echo "🐛 DEBUG: $1" >&2
+    fi
+}
+
+check_dependencies() {
+    if ! command -v joplin >/dev/null 2>&1; then
+        print_error "Joplin CLI is not installed"
+        echo "  Install with: npm install -g joplin"
+        exit 1
+    fi
+    
+    if ! command -v pbpaste >/dev/null 2>&1; then
+        print_error "Clipboard command 'pbpaste' not found"
+        echo "  On Linux, install xclip and set up aliases"
+        echo "  See: docs/installation.md"
+        exit 1
+    fi
+}
+
+# --------------------------------------------
+# Main Script
+# --------------------------------------------
+
+# Check for help flag
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat << EOF
+Usage: learn "Article Title"
+
+Create a learning article in the configured notebook (default: Blog Posts).
+Content is read from clipboard.
+
+Examples:
+  echo "Article content" | pbcopy
+  learn "Understanding React Hooks"
+  
+  pbcopy < article.md
+  learn "Complete Guide to TDD"
+
+Configuration:
+  Edit ~/.config/joplin-workflow/config to customize:
+  - NOTEBOOK_POST: Target notebook name
+  - TEMPLATE_TAGS_LEARN: Default tags
+  - DATE_FORMAT, TIME_FORMAT: Date/time formats
+
+See: docs/usage.md for detailed examples
+EOF
+    exit 0
+fi
+
+# Check dependencies
+debug_log "Checking dependencies..."
+check_dependencies
+
+# Check arguments
+if [ $# -eq 0 ]; then
+    print_error "Usage: learn \"Article Title\""
+    echo ""
+    echo "Example:"
+    echo "  echo \"Content\" | pbcopy"
+    echo "  learn \"React Hooks Deep Dive\""
+    echo ""
+    echo "Run 'learn --help' for more information"
+    exit 1
+fi
+
+TITLE="$1"
+debug_log "Title: $TITLE"
+
+# Get current date and time
+CURRENT_DATE=$(date +"$DATE_FORMAT")
+CURRENT_TIME=$(date +"$TIME_FORMAT")
+debug_log "Date: $CURRENT_DATE, Time: $CURRENT_TIME"
+
+# Read clipboard content
+debug_log "Reading from clipboard..."
+CLIPBOARD_CONTENT=$(pbpaste)
+
+if [ -z "$CLIPBOARD_CONTENT" ]; then
+    print_error "Clipboard is empty"
+    echo ""
+    echo "Please copy content first:"
+    echo "  echo \"Your content\" | pbcopy"
+    echo "  # or copy from editor/browser"
+    exit 1
+fi
+
+debug_log "Clipboard content length: ${#CLIPBOARD_CONTENT} characters"
+
+# Build note body
+NOTE_BODY="# ${TITLE}
+
+> 📅 Created: ${CURRENT_DATE} ${CURRENT_TIME}
+> 🏷️ Tags: ${TEMPLATE_TAGS_LEARN}
+
+---
+
+${CLIPBOARD_CONTENT}
+
+---
+
+## TODO
+- [ ] Add implementation examples
+- [ ] Add resource links
+- [ ] Proofread and format
+"
+
+debug_log "Note body prepared"
+
+# Switch to target notebook
+debug_log "Switching to notebook: $NOTEBOOK_POST"
+if ! joplin use "$NOTEBOOK_POST" > /dev/null 2>&1; then
+    print_error "Notebook not found: $NOTEBOOK_POST"
+    echo ""
+    echo "Available notebooks:"
+    joplin ls / -l 2>/dev/null | grep -v "^$"
+    echo ""
+    echo "Create notebook with:"
+    echo "  joplin mkbook \"$NOTEBOOK_POST\""
+    echo ""
+    echo "Or configure different notebook in:"
+    echo "  $CONFIG_FILE"
+    exit 1
+fi
+
+# Create note
+debug_log "Creating note..."
+if ! joplin mknote "$TITLE" > /dev/null 2>&1; then
+    print_error "Failed to create note"
+    exit 1
+fi
+
+# Get note ID (most recent note)
+NOTE_ID=$(joplin ls -l -n 1 2>/dev/null | awk '{print $1}')
+debug_log "Note ID: $NOTE_ID"
+
+if [ -z "$NOTE_ID" ]; then
+    print_error "Failed to get note ID"
+    exit 1
+fi
+
+# Set note body
+debug_log "Writing note content..."
+if ! joplin set "$NOTE_ID" body "$NOTE_BODY" > /dev/null 2>&1; then
+    print_error "Failed to write note content"
+    exit 1
+fi
+
+# Success message
+print_success "Learning article created!"
+echo "📝 Title: ${TITLE}"
+echo "📁 Notebook: ${NOTEBOOK_POST}"
+echo "🔗 ID: ${NOTE_ID}"
+
+# Sync if enabled
+if [ "$AUTO_SYNC" = "true" ]; then
+    echo ""
+    echo "⏳ Syncing..."
+    if joplin sync 2>&1 | grep -q "Completed\|完成"; then
+        print_success "Sync complete!"
+    else
+        echo "⚠️  Sync may have issues (check 'joplin sync' manually)"
+    fi
+fi
+
+echo ""
+print_info "View note: joplin cat $NOTE_ID"
+print_info "Edit note: joplin edit $NOTE_ID"
+
+exit 0
+

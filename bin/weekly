@@ -1,0 +1,259 @@
+#!/bin/bash
+# ============================================
+# weekly - Create weekly review note
+# ============================================
+# 
+# Usage: weekly "Week Title"
+# Reads summary from clipboard and creates weekly review note.
+# Automatically calculates current week date range.
+#
+
+set -e
+
+# --------------------------------------------
+# Configuration
+# --------------------------------------------
+
+CONFIG_FILE="$HOME/.config/joplin-workflow/config"
+
+# Default values (used if config not found)
+NOTEBOOK_WEEKLY="Weekly Reviews"
+TEMPLATE_TAGS_WEEKLY="#weekly #review"
+DATE_FORMAT="%Y-%m-%d"
+TIME_FORMAT="%H:%M"
+WEEK_DATE_FORMAT="%Y-%m-%d"
+AUTO_SYNC="true"
+DEBUG="false"
+
+# Load configuration if exists
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+elif [ "$DEBUG" = "true" ]; then
+    echo "⚠️  Config file not found, using defaults: $CONFIG_FILE"
+fi
+
+# --------------------------------------------
+# Helper Functions
+# --------------------------------------------
+
+print_error() {
+    echo "❌ $1" >&2
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_info() {
+    echo "💡 $1"
+}
+
+debug_log() {
+    if [ "$DEBUG" = "true" ]; then
+        echo "🐛 DEBUG: $1" >&2
+    fi
+}
+
+check_dependencies() {
+    if ! command -v joplin >/dev/null 2>&1; then
+        print_error "Joplin CLI is not installed"
+        echo "  Install with: npm install -g joplin"
+        exit 1
+    fi
+    
+    if ! command -v pbpaste >/dev/null 2>&1; then
+        print_error "Clipboard command 'pbpaste' not found"
+        echo "  On Linux, install xclip and set up aliases"
+        echo "  See: docs/installation.md"
+        exit 1
+    fi
+}
+
+get_week_range() {
+    # Get current day of week (1=Monday, 7=Sunday)
+    local day_of_week=$(date +%u)
+    
+    # Calculate days to Monday (start of week)
+    local days_to_monday=$((day_of_week - 1))
+    
+    # Calculate Monday's date (start of week)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS date command
+        WEEK_START=$(date -v-${days_to_monday}d +"$WEEK_DATE_FORMAT")
+        WEEK_END=$(date -v+$((6 - days_to_monday))d +"$WEEK_DATE_FORMAT")
+    else
+        # Linux date command
+        WEEK_START=$(date -d "-${days_to_monday} days" +"$WEEK_DATE_FORMAT")
+        WEEK_END=$(date -d "+$((6 - days_to_monday)) days" +"$WEEK_DATE_FORMAT")
+    fi
+    
+    debug_log "Week range: $WEEK_START to $WEEK_END"
+}
+
+# --------------------------------------------
+# Main Script
+# --------------------------------------------
+
+# Check for help flag
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat << EOF
+Usage: weekly "Week Title"
+
+Create a weekly review note with automatic week date range calculation.
+Content is read from clipboard.
+
+Examples:
+  pbcopy < weekly-summary.md
+  weekly "W07 TDD Learning Complete"
+  
+  echo "Week summary content" | pbcopy
+  weekly "Frontend Bootcamp Week 7"
+
+The note will automatically include:
+  - Current week date range (Monday to Sunday)
+  - Weekly statistics template
+  - Next week planning section
+
+Configuration:
+  Edit ~/.config/joplin-workflow/config to customize:
+  - NOTEBOOK_WEEKLY: Target notebook name
+  - TEMPLATE_TAGS_WEEKLY: Default tags
+  - DATE_FORMAT, TIME_FORMAT: Date/time formats
+
+See: docs/usage.md for detailed examples
+EOF
+    exit 0
+fi
+
+# Check dependencies
+debug_log "Checking dependencies..."
+check_dependencies
+
+# Check arguments
+if [ $# -eq 0 ]; then
+    print_error "Usage: weekly \"Week Title\""
+    echo ""
+    echo "Example:"
+    echo "  echo \"Week summary\" | pbcopy"
+    echo "  weekly \"W07 Learning Summary\""
+    echo ""
+    echo "Run 'weekly --help' for more information"
+    exit 1
+fi
+
+TITLE="$1"
+debug_log "Title: $TITLE"
+
+# Get current date and time
+CURRENT_DATE=$(date +"$DATE_FORMAT")
+CURRENT_TIME=$(date +"$TIME_FORMAT")
+debug_log "Date: $CURRENT_DATE, Time: $CURRENT_TIME"
+
+# Calculate week range
+debug_log "Calculating week range..."
+get_week_range
+
+# Read clipboard content
+debug_log "Reading from clipboard..."
+CLIPBOARD_CONTENT=$(pbpaste)
+
+if [ -z "$CLIPBOARD_CONTENT" ]; then
+    print_error "Clipboard is empty"
+    echo ""
+    echo "Please copy content first:"
+    echo "  echo \"Your weekly summary\" | pbcopy"
+    exit 1
+fi
+
+debug_log "Clipboard content length: ${#CLIPBOARD_CONTENT} characters"
+
+# Build note body
+NOTE_BODY="# ${TITLE}
+
+> 📅 Week: ${WEEK_START} ~ ${WEEK_END}
+> 📝 Created: ${CURRENT_DATE}
+> 🏷️ Tags: ${TEMPLATE_TAGS_WEEKLY}
+
+---
+
+${CLIPBOARD_CONTENT}
+
+---
+
+## Weekly Stats
+- ⏱️ **Learning Hours**: ___ hours
+- 📚 **Completed Courses**: ___
+- 💻 **Projects**: ___
+
+## Next Week Plan
+- [ ] 
+
+## Reflection & Improvements
+"
+
+debug_log "Note body prepared"
+
+# Switch to target notebook
+debug_log "Switching to notebook: $NOTEBOOK_WEEKLY"
+if ! joplin use "$NOTEBOOK_WEEKLY" > /dev/null 2>&1; then
+    print_error "Notebook not found: $NOTEBOOK_WEEKLY"
+    echo ""
+    echo "Available notebooks:"
+    joplin ls / -l 2>/dev/null | grep -v "^$"
+    echo ""
+    echo "Create notebook with:"
+    echo "  joplin mkbook \"$NOTEBOOK_WEEKLY\""
+    echo ""
+    echo "Or configure different notebook in:"
+    echo "  $CONFIG_FILE"
+    exit 1
+fi
+
+# Create note
+debug_log "Creating note..."
+if ! joplin mknote "$TITLE" > /dev/null 2>&1; then
+    print_error "Failed to create note"
+    exit 1
+fi
+
+# Get note ID (most recent note)
+NOTE_ID=$(joplin ls -l -n 1 2>/dev/null | awk '{print $1}')
+debug_log "Note ID: $NOTE_ID"
+
+if [ -z "$NOTE_ID" ]; then
+    print_error "Failed to get note ID"
+    exit 1
+fi
+
+# Set note body
+debug_log "Writing note content..."
+if ! joplin set "$NOTE_ID" body "$NOTE_BODY" > /dev/null 2>&1; then
+    print_error "Failed to write note content"
+    exit 1
+fi
+
+# Success message
+print_success "Weekly review created!"
+echo "📝 Title: ${TITLE}"
+echo "📅 Week: ${WEEK_START} ~ ${WEEK_END}"
+echo "📁 Notebook: ${NOTEBOOK_WEEKLY}"
+echo "🔗 ID: ${NOTE_ID}"
+
+# Sync if enabled
+if [ "$AUTO_SYNC" = "true" ]; then
+    echo ""
+    echo "⏳ Syncing..."
+    if joplin sync 2>&1 | grep -q "Completed\|完成"; then
+        print_success "Sync complete!"
+    else
+        echo "⚠️  Sync may have issues (check 'joplin sync' manually)"
+    fi
+fi
+
+echo ""
+print_info "View note: joplin cat $NOTE_ID"
+print_info "Edit note: joplin edit $NOTE_ID"
+print_info "Fill in weekly stats in Joplin Desktop or CLI"
+
+exit 0
+
