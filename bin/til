@@ -169,23 +169,16 @@ if ! joplin use "$NOTEBOOK_DAILY" > /dev/null 2>&1; then
     exit 1
 fi
 
-# Search for today's note
+# Search for today's note (get ID directly in one step)
 debug_log "Searching for today's note: $TODAY_TITLE"
-EXISTING_NOTE=$(joplin ls 2>/dev/null | grep "^${TODAY_TITLE}$" || echo "")
+NOTE_INFO=$(joplin ls -l 2>/dev/null | grep -F "${TODAY_TITLE}" | head -n 1 || echo "")
+NOTE_ID=$(echo "$NOTE_INFO" | awk '{print $1}')
 
-if [ -n "$EXISTING_NOTE" ]; then
+if [ -n "$NOTE_ID" ]; then
     # Today's note exists - append to it
     echo "📌 Found today's note, appending..."
     debug_log "Today's note exists, appending content"
-    
-    # Get note ID
-    NOTE_ID=$(joplin ls -l 2>/dev/null | grep "${TODAY_TITLE}" | awk '{print $1}' | head -n 1)
     debug_log "Note ID: $NOTE_ID"
-    
-    if [ -z "$NOTE_ID" ]; then
-        print_error "Failed to get note ID"
-        exit 1
-    fi
     
     # Get existing content
     debug_log "Reading existing note content..."
