@@ -76,14 +76,16 @@ check_dependencies() {
 # Check for help flag
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat << EOF
-Usage: til "Concept Name"
+Usage: til ["Concept Name"]
 
 Append a Today I Learned entry to today's daily note.
 Content is read from clipboard. Multiple TILs append to the same note.
+If no title is given, the first line of the clipboard is used as the title.
 
 Examples:
   echo "Promise.all() fails fast" | pbcopy
-  til "Promise.all() Behavior"
+  til                            # title auto-set to "Promise.all() fails fast"
+  til "Promise.all() Behavior"   # title overridden
   
   # Later the same day
   echo "Array.reduce() can replace map+filter" | pbcopy
@@ -106,31 +108,7 @@ fi
 debug_log "Checking dependencies..."
 check_dependencies
 
-# Check arguments
-if [ $# -eq 0 ]; then
-    print_error "Usage: til \"Concept Name\""
-    echo ""
-    echo "Example:"
-    echo "  echo \"Learning point\" | pbcopy"
-    echo "  til \"JavaScript Closures\""
-    echo ""
-    echo "Run 'til --help' for more information"
-    exit 1
-fi
-
-CONCEPT="$1"
-debug_log "Concept: $CONCEPT"
-
-# Get current date and time
-CURRENT_DATE=$(date +"$DATE_FORMAT")
-CURRENT_TIME=$(date +"$TIME_FORMAT")
-debug_log "Date: $CURRENT_DATE, Time: $CURRENT_TIME"
-
-# Build today's note title
-TODAY_TITLE="${DAILY_NOTE_TITLE_TEMPLATE/\{DATE\}/$CURRENT_DATE}"
-debug_log "Today's note title: $TODAY_TITLE"
-
-# Read clipboard content
+# Get clipboard content early (needed for auto-title)
 debug_log "Reading from clipboard..."
 CLIPBOARD_CONTENT=$(pbpaste)
 
@@ -143,6 +121,25 @@ if [ -z "$CLIPBOARD_CONTENT" ]; then
 fi
 
 debug_log "Clipboard content length: ${#CLIPBOARD_CONTENT} characters"
+
+# Determine concept title
+if [ $# -eq 0 ]; then
+    # Auto-derive title from first line of clipboard
+    CONCEPT=$(echo "$CLIPBOARD_CONTENT" | head -n 1 | sed 's/^[#[:space:]]*//')
+    print_info "No title provided, using first line: \"${CONCEPT}\""
+else
+    CONCEPT="$1"
+fi
+debug_log "Concept: $CONCEPT"
+
+# Get current date and time
+CURRENT_DATE=$(date +"$DATE_FORMAT")
+CURRENT_TIME=$(date +"$TIME_FORMAT")
+debug_log "Date: $CURRENT_DATE, Time: $CURRENT_TIME"
+
+# Build today's note title
+TODAY_TITLE="${DAILY_NOTE_TITLE_TEMPLATE/\{DATE\}/$CURRENT_DATE}"
+debug_log "Today's note title: $TODAY_TITLE"
 
 # Build TIL entry
 NEW_TIL_BLOCK="
