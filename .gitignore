@@ -45,10 +45,6 @@ Desktop.ini
 *.sublime-project
 *.sublime-workspace
 
-# Shell 腳本相關
-*.sh.bak
-*.sh~
-
 # 環境變數檔案（如果有敏感資訊）
 .env
 .env.local
