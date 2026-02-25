@@ -186,6 +186,12 @@ if [ -n "$NOTE_ID" ]; then
         exit 1
     fi
     
+    # Strip leading title lines that 'joplin cat' prepends each time it's called
+    # Without this, each append accumulates an extra plain-text title at the top
+    while [ "$(echo "$EXISTING_BODY" | head -n 1)" = "$TODAY_TITLE" ]; do
+        EXISTING_BODY=$(echo "$EXISTING_BODY" | tail -n +2)
+    done
+    
     # Append new TIL
     UPDATED_BODY="${EXISTING_BODY}${NEW_TIL_BLOCK}"
     
