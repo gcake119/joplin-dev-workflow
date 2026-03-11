@@ -243,7 +243,8 @@ echo "🔗 ID: ${NOTE_ID}"
 if [ "$AUTO_SYNC" = "true" ]; then
     echo ""
     echo "⏳ Syncing..."
-    if joplin sync 2>&1 | grep -q "Completed\|完成"; then
+    SYNC_OUTPUT=$(joplin sync 2>&1)
+    if echo "$SYNC_OUTPUT" | grep -q "Completed\|完成"; then
         print_success "Sync complete!"
     else
         echo "⚠️  Sync may have issues (check 'joplin sync' manually)"
