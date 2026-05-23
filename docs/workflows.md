@@ -21,6 +21,8 @@ Recommended workflows and best practices for using Joplin Dev Workflow in differ
 
 Effective note-taking is about **capturing knowledge at the right time** and **organizing it for future use**. These workflows help you build sustainable learning habits.
 
+The command layer runs in your terminal, but the write path is Joplin Desktop Data API. Keep Joplin Desktop running with Web Clipper enabled; notes are written locally first, and cloud sync follows your Joplin Desktop sync settings.
+
 ### Workflow Principles
 
 1. **Capture Fast** - Don't interrupt your flow
@@ -40,14 +42,11 @@ Effective note-taking is about **capturing knowledge at the right time** and **o
 #### Morning (15 minutes)
 
 ```bash
-# 1. Review yesterday's TIL
-joplin use "Daily Notes"
-joplin ls -l -n 1
-joplin cat <yesterday-note-id>
+# 1. Review yesterday's TIL in Joplin Desktop
+# Open the Daily Notes notebook and inspect the latest daily note
 
-# 2. Check weekly goals
-joplin use "Weekly Reviews"
-joplin cat <current-week-id>
+# 2. Check weekly goals in Joplin Desktop
+# Open the Weekly Reviews notebook
 
 # 3. Set daily intention (optional)
 echo "Today's focus: Array methods and reduce()" | pbcopy

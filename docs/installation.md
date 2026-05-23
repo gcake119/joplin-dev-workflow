@@ -25,7 +25,8 @@ Complete installation guide for Joplin Dev Workflow across different platforms.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| **Joplin CLI** | Latest | Core note management |
+| **Joplin Desktop** | Latest | Note storage, Web Clipper/Data API, sync manager |
+| **curl** | Current OS package | Data API requests |
 | **jq** | 1.6+ | JSON processing |
 | **Bash** | 4.0+ | Script execution |
 
@@ -33,7 +34,7 @@ Complete installation guide for Joplin Dev Workflow across different platforms.
 
 | Tool | Purpose |
 |------|---------|
-| **Joplin Desktop** | Visual note management, sync configuration |
+| **Joplin CLI** | Legacy/fallback terminal workflows |
 | **VS Code** | Edit notes in editor (with Joplin extension) |
 | **Git** | Version control (for development) |
 
@@ -60,6 +61,7 @@ The installer will:
 - ✅ Create necessary directories
 - ✅ Install scripts via symlinks
 - ✅ Set up configuration file
+- ✅ Explain Joplin Desktop Web Clipper/Data API token setup
 - ✅ Configure clipboard support (Linux)
 
 ---
@@ -79,21 +81,17 @@ The installer will:
 #### Step 2: Install Dependencies
 
 ```bash
-# Install Node.js (for npm)
-brew install node
-
-# Install Joplin CLI
-npm install -g joplin
-
-# Install jq
+# Install jq if needed
 brew install jq
+
+# curl and pbpaste are built into macOS
 ```
 
 #### Step 3: Verify Installation
 
 ```bash
-joplin version
 jq --version
+curl --version
 ```
 
 #### Step 4: Install Joplin Dev Workflow
@@ -118,6 +116,7 @@ source ~/.bashrc
 
 - ✅ `pbcopy` and `pbpaste` are built-in (no additional setup needed)
 - ✅ Works with both zsh (default) and bash
+- ✅ Joplin Desktop Web Clipper/Data API is the default write path
 - 💡 If using iTerm2, clipboard integration works seamlessly
 
 ---
@@ -326,42 +325,25 @@ alias pbcopy='xclip -selection clipboard'
 
 ## Post-Installation Setup
 
-### 1. Configure Joplin CLI
+### 1. Configure Joplin Desktop Data API
 
-First-time Joplin CLI setup:
+First-time Joplin Desktop setup:
 
-```bash
-# Start Joplin CLI
-joplin
-
-# The CLI will guide you through initial setup
-```
+1. Open Joplin Desktop.
+2. Open **Tools > Options > Web Clipper**.
+3. Enable the Web Clipper service.
+4. Copy the authorization token.
+5. Put it in `~/.config/joplin-workflow/config` as `JOPLIN_API_TOKEN`.
 
 ### 2. Create Required Notebooks
 
-```bash
-# Create the three default notebooks
-joplin mkbook "Daily Notes"
-joplin mkbook "Blog Posts"
-joplin mkbook "Weekly Reviews"
-
-# Verify
-joplin ls /
-```
+Create `Daily Notes`, `Blog Posts`, and `Weekly Reviews` in Joplin Desktop. If you already have duplicate notebook titles, copy each folder ID into `NOTEBOOK_DAILY_ID`, `NOTEBOOK_POST_ID`, and `NOTEBOOK_WEEKLY_ID` in the local config.
 
 ### 3. (Optional) Configure Joplin Sync
 
 Set up Joplin Cloud or other sync services:
 
-```bash
-# Example: Joplin Cloud
-joplin config sync.target 10
-joplin config sync.10.username "your-email@example.com"
-joplin config sync.10.password "your-password"
-
-# Run sync
-joplin sync
-```
+Configure sync inside Joplin Desktop. The workflow commands write locally through Data API; cloud sync timing and status come from Joplin Desktop.
 
 See [Joplin sync documentation](https://joplinapp.org/help/apps/sync/) for other sync options (Dropbox, OneDrive, etc.).
 

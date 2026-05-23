@@ -47,7 +47,8 @@ weekly "W07 Title"
 
 **Common Options**:
 - All commands read from clipboard (`pbpaste`)
-- All commands auto-sync after creation
+- All commands write through Joplin Desktop Data API
+- `AUTO_SYNC=true` shows a Joplin Desktop sync reminder; cloud sync itself is handled by Joplin Desktop
 - All commands add metadata and templates
 
 ---
@@ -67,10 +68,11 @@ learn "Article Title"
 #### What It Does
 
 1. Reads content from clipboard
-2. Creates note in "Blog Posts" notebook
-3. Adds metadata (date, tags)
-4. Includes draft checklist template
-5. Auto-syncs with Joplin
+2. Resolves "Blog Posts" to a Joplin folder ID
+3. Creates note through Joplin Desktop Data API
+4. Adds metadata (date, tags)
+5. Includes draft checklist template
+6. Reminds you that Desktop handles cloud sync
 
 #### Generated Note Structure
 
@@ -186,7 +188,7 @@ til "Concept Name"
    - **If exists**: Appends new entry at the end
    - **If not exists**: Creates new daily note
 3. Adds timestamp for each entry
-4. Auto-syncs
+4. Writes through Joplin Desktop Data API and shows Desktop sync status guidance
 
 #### Generated Note Structure
 
@@ -326,7 +328,7 @@ weekly "Week Title"
 2. Creates note in "Weekly Reviews" notebook
 3. Calculates week date range (Monday-Sunday)
 4. Includes statistics template
-5. Auto-syncs
+5. Writes through Joplin Desktop Data API and shows Desktop sync status guidance
 
 #### Generated Note Structure
 

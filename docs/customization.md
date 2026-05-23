@@ -28,9 +28,20 @@ Complete guide to customizing Joplin Dev Workflow to fit your needs.
 ### Basic Structure
 
 ```bash
+# Joplin Desktop Data API
+JOPLIN_WRITE_ADAPTER="data_api"
+JOPLIN_API_TOKEN=""
+JOPLIN_API_BASE_URL=""
+JOPLIN_API_PORT_START="41184"
+JOPLIN_API_PORT_END="41194"
+JOPLIN_API_TIMEOUT="5"
+
 # Notebook mappings
+NOTEBOOK_DAILY_ID=""
 NOTEBOOK_DAILY="Daily Notes"
+NOTEBOOK_POST_ID=""
 NOTEBOOK_POST="Blog Posts"
+NOTEBOOK_WEEKLY_ID=""
 NOTEBOOK_WEEKLY="Weekly Reviews"
 
 # Template tags
@@ -72,10 +83,15 @@ learn "Test Config"
 
 ### Change Notebook Names
 
-Edit the configuration file to use your existing Joplin notebooks:
+Edit the configuration file to use your existing Joplin notebooks. Folder IDs are preferred because Data API writes require a `parent_id` and titles can be duplicated:
 
 ```bash
-# Default
+# Preferred: folder IDs copied from Joplin Desktop/Data API
+NOTEBOOK_DAILY_ID="0123456789abcdef0123456789abcdef"
+NOTEBOOK_POST_ID="fedcba9876543210fedcba9876543210"
+NOTEBOOK_WEEKLY_ID="11112222333344445555666677778888"
+
+# Title fallback when titles are unique
 NOTEBOOK_DAILY="Daily Notes"
 NOTEBOOK_POST="Blog Posts"
 NOTEBOOK_WEEKLY="Weekly Reviews"
@@ -90,26 +106,22 @@ NOTEBOOK_DAILY="📅 Daily"
 NOTEBOOK_POST="📝 Articles"
 NOTEBOOK_WEEKLY="📊 Weekly"
 
-# Example: Nested structure (if supported in Joplin)
-NOTEBOOK_DAILY="Learning/Daily"
-NOTEBOOK_POST="Writing/Blog Posts"
-NOTEBOOK_WEEKLY="Reviews/Weekly"
+# If two notebooks share the same title, set the matching NOTEBOOK_*_ID.
 ```
 
 ### Create Custom Notebooks
 
-In Joplin CLI:
+Create custom notebooks in Joplin Desktop, then update the config:
 
 ```bash
-# Create your custom notebooks
-joplin mkbook "My Learning Journal"
-joplin mkbook "Tech Articles"
-joplin mkbook "Monthly Reviews"
-
-# Update config to use them
 NOTEBOOK_DAILY="My Learning Journal"
 NOTEBOOK_POST="Tech Articles"
 NOTEBOOK_WEEKLY="Monthly Reviews"
+
+# Recommended when titles are duplicated or nested
+NOTEBOOK_DAILY_ID="..."
+NOTEBOOK_POST_ID="..."
+NOTEBOOK_WEEKLY_ID="..."
 ```
 
 ### Multiple Profiles
@@ -561,13 +573,13 @@ DAILY_NOTE_TITLE_TEMPLATE="{DATE}"
 ### Sync Options
 
 ```bash
-# Auto-sync after creating notes (default: true)
+# Show a Joplin Desktop sync reminder after local Data API writes (default: true)
 AUTO_SYNC="true"
 
-# Disable auto-sync (manual sync only)
+# Only report the local write result
 AUTO_SYNC="false"
 
-# Sync timeout in seconds
+# Reserved for legacy/fallback adapters. Data API mode uses JOPLIN_API_TIMEOUT.
 SYNC_TIMEOUT="30"
 ```
 

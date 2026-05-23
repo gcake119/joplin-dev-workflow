@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Shell Script](https://img.shields.io/badge/Shell-Bash-green.svg)](https://www.gnu.org/software/bash/)
-[![Joplin](https://img.shields.io/badge/Joplin-CLI-blue.svg)](https://joplinapp.org)
+[![Joplin](https://img.shields.io/badge/Joplin-Desktop_Data_API-blue.svg)](https://joplinapp.org)
 [![macOS](https://img.shields.io/badge/Tested-macOS_26.2-blue.svg)](https://www.apple.com/macos/)
 
 ---
@@ -18,7 +18,7 @@ As a **frontend bootcamp student** practicing TDD and learning JavaScript, I nee
 - 🔄 Sync everything across devices (via Joplin Cloud, if configured)
 - 💰 **Save on AI API costs** by using clipboard instead of premium AI requests
 
-Traditional GUI note apps break the flow. **These CLI tools work entirely in the terminal** - no desktop app required during active note-taking.
+Traditional GUI note apps break the flow. **These CLI tools run from the terminal while writing into Joplin Desktop through the Data API**, so Joplin Desktop remains the note home and sync manager.
 
 ### Design Philosophy: Clipboard-First Approach
 
@@ -47,7 +47,7 @@ Traditional GUI note apps break the flow. **These CLI tools work entirely in the
 - 🚀 **No context switching** - run from your terminal, content in clipboard
 - 📎 **Auto-append TIL entries** - multiple learnings in one daily note
 - 🏷️ **Pre-configured templates** - tags, metadata, and structure
-- 🔄 **Auto-sync** - changes sync to Joplin Cloud immediately
+- 🔄 **Desktop-managed sync** - notes are written locally, then Joplin Desktop handles cloud sync
 - 🖥️ **Cross-platform ready** - developed on macOS, Linux/Windows compatible
 
 ---
@@ -60,18 +60,19 @@ Traditional GUI note apps break the flow. **These CLI tools work entirely in the
 
 | Tool | Installation | Purpose |
 |------|-------------|---------|
-| **Joplin CLI** | `npm install -g joplin` | Core note management |
+| **Joplin Desktop** | [Download Joplin](https://joplinapp.org/download/) | Note storage, Web Clipper/Data API, sync manager |
+| **curl** | Built into macOS<br>`sudo apt install curl` (Linux) | Data API requests |
 | **jq** | `brew install jq` (macOS)<br>`sudo apt install jq` (Linux) | JSON processing |
 
 #### Optional (Recommended)
 
 | Tool | Purpose | When You Need It |
 |------|---------|------------------|
-| **Joplin Desktop** | Visual interface, sync setup | Want GUI preview, configure Joplin Cloud |
+| **Joplin CLI** | Legacy/fallback terminal workflows | Only if you intentionally use old CLI-only flows |
 | **VS Code Joplin Extension** | Edit notes in VS Code | Prefer VS Code over CLI/Desktop |
 | **xclip** (Linux) | Clipboard support | Auto-installed by `install.sh` |
 
-> 💡 **Quick Start**: You can start using these scripts with just Joplin CLI + jq. Add Desktop later if you want visual management.
+> 💡 **Quick Start**: Enable Web Clipper in Joplin Desktop, copy its Data API token into `~/.config/joplin-workflow/config`, then run the commands from your terminal.
 
 ### Quick Install
 
@@ -87,23 +88,12 @@ cd joplin-dev-workflow
 source ~/.zshrc  # or ~/.bashrc
 ```
 
-### First-Time Setup (CLI Only)
+### First-Time Setup (Joplin Desktop Data API)
 
-If using without Desktop:
-
-```bash
-# 1. Configure Joplin CLI
-joplin config editor "nano"  # or vim, code, etc.
-
-# 2. Create notebooks (or customize in config)
-joplin mkbook "Daily Notes"
-joplin mkbook "Blog Posts"
-joplin mkbook "Weekly Reviews"
-
-# 3. (Optional) Set up sync
-joplin config sync.target 10  # Joplin Cloud
-joplin sync
-```
+1. Open Joplin Desktop.
+2. Enable **Tools > Options > Web Clipper > Enable Web Clipper Service**.
+3. Copy the authorization token into `~/.config/joplin-workflow/config` as `JOPLIN_API_TOKEN`.
+4. Create `Daily Notes`, `Blog Posts`, and `Weekly Reviews` in Joplin Desktop, or configure `NOTEBOOK_DAILY_ID`, `NOTEBOOK_POST_ID`, and `NOTEBOOK_WEEKLY_ID` when notebook titles are duplicated.
 
 See [docs/installation.md](docs/installation.md) for detailed setup guides.
 
@@ -273,7 +263,8 @@ The `install.sh` script attempts to configure these automatically.
 ### Current (v0.1.0)
 - ✅ Clipboard-based content capture
 - ✅ Three core commands (learn, til, weekly)
-- ✅ Auto-sync with Joplin CLI
+- ✅ Joplin Desktop Data API write path
+- ✅ Desktop-managed sync reminder
 - ✅ Configurable templates
 
 ### Future Plans
@@ -296,19 +287,19 @@ The `install.sh` script attempts to configure these automatically.
 ## ❓ FAQ
 
 **Q: Do I need Joplin Desktop installed?**  
-A: No, the scripts work with Joplin CLI only. Desktop is recommended for visual management and setting up sync, but not required for the automation workflow.
+A: Yes for the default workflow. The scripts write through Joplin Desktop Data API, so Joplin Desktop and Web Clipper service must be running.
 
 **Q: Can I use this without Joplin Cloud?**  
-A: Yes! Scripts create notes locally. Cloud sync is optional. Run `joplin sync` manually or use any sync method (Dropbox, OneDrive, etc.) configured in Joplin.
+A: Yes. Scripts create notes in local Joplin Desktop. Cloud sync is optional and follows your Joplin Desktop sync settings.
 
 **Q: Why use clipboard instead of direct AI integration?**  
 A: Clipboard approach saves premium AI API quotas, lets you review content before saving, and works with any content source. Future versions may add optional AI integration.
 
 **Q: Will this work with VS Code Joplin extension?**  
-A: The extension requires Joplin Desktop running in the background (for Web Clipper API). But the CLI scripts work independently.
+A: Yes, both use Joplin Desktop as the local note environment. These scripts write through the same Data API family and leave editing to Joplin Desktop or your editor workflow.
 
 **Q: What if I don't have Joplin Desktop?**  
-A: Just install Joplin CLI and you're good to go! Use `joplin` commands to view/edit notes in the terminal.
+A: Install Joplin Desktop first. Joplin CLI is now legacy/fallback only and is not the default write path.
 
 **Q: Does this work on Linux/Windows?**  
 A: The scripts should work on Linux (with `xclip`) and Windows WSL. Not tested yet - please report your experience!

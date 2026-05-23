@@ -7,29 +7,29 @@
 | 專案名稱 | Joplin Dev Workflow - AI Auto Generation |
 | 版本 | 0.2.0 |
 | 撰寫日期 | 2026-02-17 |
-| 更新日期 | 2026-02-19 |
-| 實作方案 | 方案 B - 新增獨立腳本 + Claude API 整合 |
-| 預設 AI Provider | Claude API (Anthropic) - claude-sonnet-4-6 |
+| 更新日期 | 2026-05-23 |
+| 狀態 | Future / Optional capability, not implemented in the three base commands |
+| 實作方案 | 待未來 Spectra change 決定 |
+| 預設 AI Provider | 未定；不得視為目前 runtime 設定 |
 | 替代方案 | Ollama 本地模式 |
-| 目標使用者 | 使用 Joplin CLI 的開發者 |
+| 目標使用者 | 使用 Joplin Desktop Data API base workflow 的開發者 |
 
 ---
 
 ## 1. 專案概述
 
 ### 1.1 目標
-在現有 `til`、`learn`、`weekly` 工作流基礎上，新增 AI 自動化筆記生成功能，使用 Claude API（預設）或 Ollama 本地模型從 TIL 筆記自動生成結構化學習文章和週報。
+本文件是未來 AI generation mode 與 AI agent mode 的方向草案，不代表目前三個核心命令已實作 AI provider。現有 `til`、`learn`、`weekly` 是不需要 AI API key 的 base capture commands，寫入路徑是 Joplin Desktop Data API。
 
 ### 1.2 範圍
-- 新增 `learn-auto` 指令：從今日 TIL 生成學習筆記
-- 新增 `weekly-auto` 指令：從本週 TIL 生成週報
-- 新增 `lib/ai_helper.sh`：AI API 互動函式庫（支援 Claude 和 Ollama）
-- 更新配置檔支援 Claude API 和 Ollama 設定
-- 預設使用 Claude API（claude-sonnet-4-6），可選擇 Ollama 本地模型
-- 保持現有工作流 100% 向後相容
+- AI generation mode：可在未來新增單次命令式生成，例如從今日 TIL 生成文章草稿或週報草稿。
+- AI agent mode：可在未來新增多步驟 orchestration，例如收集上下文、擬定語意標題、生成草稿、要求確認、再寫入 Joplin。
+- AI provider、model、prompt template、cache/log、API key 來源必須與一般 notebook/Data API 設定分區。
+- Agent 寫入 Joplin 前必須保留 draft-first 或使用者確認流程。
+- 現有 base capture commands 必須維持不需要 AI provider。
 
 ### 1.3 非範圍
-- 不修改現有 `til`、`learn`、`weekly` 腳本
+- 不把本文件中的 AI provider 設定描述為目前已實作 runtime 行為
 - 不支援 OpenAI API（可在未來版本加入）
 - 不包含 GUI 介面
 

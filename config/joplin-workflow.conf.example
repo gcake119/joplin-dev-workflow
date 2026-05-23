@@ -9,22 +9,48 @@
 #
 
 # --------------------------------------------
+# Joplin Desktop Data API Configuration
+# --------------------------------------------
+# Base mode writes to Joplin Desktop through the Web Clipper/Data API service.
+# In Joplin Desktop, enable:
+#   Tools > Options > Web Clipper > Enable Web Clipper Service
+#
+# Copy the authorization token from that screen into your local config only.
+# Do not commit real tokens to this repository.
+
+JOPLIN_WRITE_ADAPTER="data_api"
+
+# Optional. Leave empty to probe localhost ports from JOPLIN_API_PORT_START
+# through JOPLIN_API_PORT_END. Joplin Desktop commonly uses 41184.
+JOPLIN_API_BASE_URL=""
+JOPLIN_API_PORT_START="41184"
+JOPLIN_API_PORT_END="41194"
+JOPLIN_API_TIMEOUT="5"
+
+# Required for writing notes through Joplin Desktop Data API.
+JOPLIN_API_TOKEN=""
+
+
+# --------------------------------------------
 # Notebook Configuration
 # --------------------------------------------
-# Specify the Joplin notebook names where notes will be created.
-# These notebooks must exist in your Joplin. Create them using:
-#   joplin mkbook "Your Notebook Name"
+# Prefer notebook/folder IDs when possible. IDs avoid ambiguity when multiple
+# notebooks share the same title or live under different parent notebooks.
+# Leave IDs empty to fall back to notebook title lookup.
 
 # Notebook for daily TIL (Today I Learned) notes
 # Used by: til command
+NOTEBOOK_DAILY_ID=""
 NOTEBOOK_DAILY="Daily Notes"
 
 # Notebook for learning articles and technical posts
 # Used by: learn command
+NOTEBOOK_POST_ID=""
 NOTEBOOK_POST="Blog Posts"
 
 # Notebook for weekly reviews and progress planning
 # Used by: weekly command
+NOTEBOOK_WEEKLY_ID=""
 NOTEBOOK_WEEKLY="Weekly Reviews"
 
 
@@ -82,10 +108,13 @@ DAILY_NOTE_TITLE_TEMPLATE="{DATE} Daily Notes"
 # --------------------------------------------
 # Sync Configuration
 # --------------------------------------------
-# Auto-sync after creating notes (true/false)
+# Data API writes notes into local Joplin Desktop. Cloud sync is owned by
+# Joplin Desktop's sync settings and status.
+# true: show a Desktop sync reminder after local writes.
+# false: only report the local write result.
 AUTO_SYNC="true"
 
-# Sync timeout in seconds (0 = no timeout)
+# Reserved for legacy/fallback adapters. Data API mode uses JOPLIN_API_TIMEOUT.
 SYNC_TIMEOUT="30"
 
 

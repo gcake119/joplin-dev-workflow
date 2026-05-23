@@ -1,285 +1,145 @@
 #!/bin/bash
-# ============================================
-# til - Append Today I Learned to daily note
-# ============================================
-# 
-# Usage: til "Concept Name"
-# Reads content from clipboard and appends to today's daily note.
-# If today's note doesn't exist, creates it first.
-#
+# Append a Today I Learned entry to a Joplin Desktop daily note through the Data API.
 
 set -e
 
-# --------------------------------------------
-# Configuration
-# --------------------------------------------
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    case "$SOURCE" in
+        /*) ;;
+        *) SOURCE="$DIR/$SOURCE" ;;
+    esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/joplin_data_api.sh
+source "$PROJECT_DIR/lib/joplin_data_api.sh"
 
 CONFIG_FILE="$HOME/.config/joplin-workflow/config"
 
-# Default values (used if config not found)
 NOTEBOOK_DAILY="Daily Notes"
+NOTEBOOK_DAILY_ID=""
 TEMPLATE_TAGS_TIL="#til #daily"
 DATE_FORMAT="%Y-%m-%d"
 TIME_FORMAT="%H:%M"
 AUTO_SYNC="true"
 DEBUG="false"
 DAILY_NOTE_TITLE_TEMPLATE="{DATE} Daily Notes"
+JOPLIN_WRITE_ADAPTER="data_api"
+JOPLIN_API_BASE_URL="${JOPLIN_API_BASE_URL:-}"
+JOPLIN_API_TOKEN="${JOPLIN_API_TOKEN:-}"
+JOPLIN_API_PORT_START="${JOPLIN_API_PORT_START:-41184}"
+JOPLIN_API_PORT_END="${JOPLIN_API_PORT_END:-41194}"
+JOPLIN_API_TIMEOUT="${JOPLIN_API_TIMEOUT:-5}"
+CLIPBOARD_CMD=""
 
-# Load configuration if exists
 if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
     source "$CONFIG_FILE"
-elif [ "$DEBUG" = "true" ]; then
-    echo "⚠️  Config file not found, using defaults: $CONFIG_FILE"
 fi
 
-# --------------------------------------------
-# Helper Functions
-# --------------------------------------------
-
-print_error() {
-    echo "❌ $1" >&2
-}
-
-print_success() {
-    echo "✅ $1"
-}
-
-print_info() {
-    echo "💡 $1"
-}
-
-debug_log() {
-    if [ "$DEBUG" = "true" ]; then
-        echo "🐛 DEBUG: $1" >&2
-    fi
-}
-
-check_dependencies() {
-    if ! command -v joplin >/dev/null 2>&1; then
-        print_error "Joplin CLI is not installed"
-        echo "  Install with: npm install -g joplin"
-        exit 1
-    fi
-    
-    if ! command -v pbpaste >/dev/null 2>&1; then
-        print_error "Clipboard command 'pbpaste' not found"
-        echo "  On Linux, install xclip and set up aliases"
-        echo "  See: docs/installation.md"
-        exit 1
-    fi
-}
-
-# --------------------------------------------
-# Main Script
-# --------------------------------------------
-
-# Check for help flag
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat << EOF
 Usage: til ["Concept Name"]
 
 Append a Today I Learned entry to today's daily note.
-Content is read from clipboard. Multiple TILs append to the same note.
+Content is read from clipboard and written through Joplin Desktop Data API.
 If no title is given, the first line of the clipboard is used as the title.
-
-Examples:
-  echo "Promise.all() fails fast" | pbcopy
-  til                            # title auto-set to "Promise.all() fails fast"
-  til "Promise.all() Behavior"   # title overridden
-  
-  # Later the same day
-  echo "Array.reduce() can replace map+filter" | pbcopy
-  til "Array.reduce() Advanced"
-  
-  # Both entries appear in today's note: "2026-02-16 Daily Notes"
 
 Configuration:
   Edit ~/.config/joplin-workflow/config to customize:
-  - NOTEBOOK_DAILY: Target notebook name
-  - TEMPLATE_TAGS_TIL: Default tags
-  - DATE_FORMAT, TIME_FORMAT: Date/time formats
+  - NOTEBOOK_DAILY_ID: Target notebook folder ID, preferred
+  - NOTEBOOK_DAILY: Target notebook title fallback
+  - DAILY_NOTE_TITLE_TEMPLATE: Daily note title template
+  - JOPLIN_API_TOKEN: Joplin Desktop Data API token
 
 See: docs/usage.md for detailed examples
 EOF
     exit 0
 fi
 
-# Check dependencies
-debug_log "Checking dependencies..."
-check_dependencies
+if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
+    jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
+    echo "Joplin CLI support is legacy/fallback and is not enabled in this command." >&2
+    exit 1
+fi
 
-# Get clipboard content early (needed for auto-title)
-debug_log "Reading from clipboard..."
-CLIPBOARD_CONTENT=$(pbpaste)
-
+CLIPBOARD_CONTENT=$(jwf_clipboard_read)
 if [ -z "$CLIPBOARD_CONTENT" ]; then
-    print_error "Clipboard is empty"
+    jwf_error "Clipboard is empty"
     echo ""
     echo "Please copy content first:"
     echo "  echo \"Your learning\" | pbcopy"
     exit 1
 fi
 
-debug_log "Clipboard content length: ${#CLIPBOARD_CONTENT} characters"
-
-# Determine concept title
 if [ $# -eq 0 ]; then
-    # Auto-derive title from first line of clipboard
-    CONCEPT=$(echo "$CLIPBOARD_CONTENT" | head -n 1 | sed 's/^[#[:space:]]*//')
-    print_info "No title provided, using first line: \"${CONCEPT}\""
+    CONCEPT=$(printf '%s\n' "$CLIPBOARD_CONTENT" | head -n 1 | sed 's/^[#[:space:]]*//')
+    echo "💡 No title provided, using first line: \"${CONCEPT}\""
 else
     CONCEPT="$1"
 fi
-debug_log "Concept: $CONCEPT"
 
-# Get current date and time
 CURRENT_DATE=$(date +"$DATE_FORMAT")
 CURRENT_TIME=$(date +"$TIME_FORMAT")
-debug_log "Date: $CURRENT_DATE, Time: $CURRENT_TIME"
-
-# Build today's note title
 TODAY_TITLE="${DAILY_NOTE_TITLE_TEMPLATE/\{DATE\}/$CURRENT_DATE}"
-debug_log "Today's note title: $TODAY_TITLE"
 
-# Build TIL entry
 NEW_TIL_BLOCK="
 ## [${CURRENT_TIME}] ${CONCEPT}
 
 ${CLIPBOARD_CONTENT}
 "
 
-debug_log "TIL entry prepared"
+joplin_api_init
+DAILY_FOLDER_ID=$(joplin_resolve_folder_id "$NOTEBOOK_DAILY_ID" "$NOTEBOOK_DAILY" "daily")
 
-# Switch to target notebook
-debug_log "Switching to notebook: $NOTEBOOK_DAILY"
-if ! joplin use "$NOTEBOOK_DAILY" > /dev/null 2>&1; then
-    print_error "Notebook not found: $NOTEBOOK_DAILY"
-    echo ""
-    echo "Available notebooks:"
-    joplin ls / -l 2>/dev/null | grep -v "^$"
-    echo ""
-    echo "Create notebook with:"
-    echo "  joplin mkbook \"$NOTEBOOK_DAILY\""
-    echo ""
-    echo "Or configure different notebook in:"
-    echo "  $CONFIG_FILE"
-    exit 1
-fi
+set +e
+NOTE_ID=$(joplin_find_note_by_title_in_folder "$TODAY_TITLE" "$DAILY_FOLDER_ID")
+NOTE_STATUS=$?
+set -e
 
-# Search for today's note (get ID directly in one step)
-debug_log "Searching for today's note: $TODAY_TITLE"
-NOTE_INFO=$(joplin ls -l 2>/dev/null | grep -F "${TODAY_TITLE}" | head -n 1 || echo "")
-NOTE_ID=$(echo "$NOTE_INFO" | awk '{print $1}')
-
-if [ -n "$NOTE_ID" ]; then
-    # Today's note exists - append to it
+if [ "$NOTE_STATUS" -eq 0 ]; then
     echo "📌 Found today's note, appending..."
-    debug_log "Today's note exists, appending content"
-    debug_log "Note ID: $NOTE_ID"
-    
-    # Get existing content
-    debug_log "Reading existing note content..."
-    EXISTING_BODY=$(joplin cat "$NOTE_ID" 2>/dev/null)
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to read existing note"
-        exit 1
-    fi
-    
-    # Strip leading title/blank lines that 'joplin cat' prepends each time it's called
-    # Without this, each append accumulates extra plain-text titles and blank lines at the top
-    while true; do
-        FIRST_LINE=$(echo "$EXISTING_BODY" | head -n 1)
-        if [ "$FIRST_LINE" = "$TODAY_TITLE" ] || [ -z "$FIRST_LINE" ]; then
-            EXISTING_BODY=$(echo "$EXISTING_BODY" | tail -n +2)
-        else
-            break
-        fi
-    done
-    
-    # Append new TIL
+    EXISTING_BODY=$(joplin_get_note_body "$NOTE_ID")
     UPDATED_BODY="${EXISTING_BODY}${NEW_TIL_BLOCK}"
-    
-    # Update note
-    debug_log "Updating note with new TIL..."
-    if ! joplin set "$NOTE_ID" body "$UPDATED_BODY" > /dev/null 2>&1; then
-        print_error "Failed to update note"
-        exit 1
-    fi
-    
-    print_success "TIL appended!"
+    joplin_update_note_body "$NOTE_ID" "$UPDATED_BODY" >/dev/null
+
+    echo "✅ TIL appended!"
     echo "📝 Concept: ${CONCEPT}"
     echo "⏰ Time: ${CURRENT_TIME}"
     echo "🔗 Note ID: ${NOTE_ID}"
-    
-else
-    # Today's note doesn't exist - create it
+elif [ "$NOTE_STATUS" -eq 2 ]; then
     echo "📄 Today's note not found, creating..."
-    debug_log "Creating new daily note"
-    
-    # Build complete note body
     NEW_NOTE_BODY="# ${TODAY_TITLE}
 
 > 🗓️ Date: ${CURRENT_DATE}
 > 🏷️ Tags: ${TEMPLATE_TAGS_TIL}
 
 ${NEW_TIL_BLOCK}"
-    
-    # Create note
-    debug_log "Creating note..."
-    if ! joplin mknote "$TODAY_TITLE" > /dev/null 2>&1; then
-        print_error "Failed to create note"
-        exit 1
-    fi
-    
-    # Get note ID
-    NOTE_ID=$(joplin ls -l -n 1 2>/dev/null | awk '{print $1}')
-    debug_log "Note ID: $NOTE_ID"
-    
+
+    NOTE_RESPONSE=$(joplin_create_note "$TODAY_TITLE" "$NEW_NOTE_BODY" "$DAILY_FOLDER_ID")
+    NOTE_ID=$(printf '%s' "$NOTE_RESPONSE" | jq -r '.id // empty')
     if [ -z "$NOTE_ID" ]; then
-        print_error "Failed to get note ID"
+        jwf_error "Failed to read created note ID from Joplin Data API response."
         exit 1
     fi
-    
-    # Set note body
-    debug_log "Writing note content..."
-    if ! joplin set "$NOTE_ID" body "$NEW_NOTE_BODY" > /dev/null 2>&1; then
-        print_error "Failed to write note content"
-        exit 1
-    fi
-    
-    print_success "Today's note created with TIL!"
+
+    echo "✅ Today's note created with TIL!"
     echo "📝 Concept: ${CONCEPT}"
     echo "🔗 Note ID: ${NOTE_ID}"
+else
+    exit "$NOTE_STATUS"
 fi
 
-# Sync if enabled
-if [ "$AUTO_SYNC" = "true" ]; then
-    echo ""
-    echo "⏳ Syncing..."
-    SYNC_TMP=$(mktemp)
-    joplin sync > "$SYNC_TMP" 2>&1 &
-    SYNC_PID=$!
-    ELAPSED=0
-    while kill -0 $SYNC_PID 2>/dev/null && [ $ELAPSED -lt 60 ]; do
-        if grep -q "Completed\|完成" "$SYNC_TMP" 2>/dev/null; then
-            kill $SYNC_PID 2>/dev/null
-            wait $SYNC_PID 2>/dev/null
-            break
-        fi
-        sleep 1
-        ELAPSED=$((ELAPSED + 1))
-    done
-    if grep -q "Completed\|完成" "$SYNC_TMP" 2>/dev/null; then
-        print_success "Sync complete!"
-    else
-        echo "⚠️  Sync may have issues (check 'joplin sync' manually)"
-    fi
-    rm -f "$SYNC_TMP"
+if ! joplin_apply_tags "$NOTE_ID" "$TEMPLATE_TAGS_TIL"; then
+    echo "Note content was written, but one or more tags could not be attached." >&2
 fi
 
+jwf_desktop_sync_message
 echo ""
-print_info "View note: joplin cat $NOTE_ID"
-print_info "Edit note: joplin edit $NOTE_ID"
+echo "💡 View or edit the note in Joplin Desktop."
 
 exit 0

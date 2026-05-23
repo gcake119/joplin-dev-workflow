@@ -114,14 +114,30 @@ echo ""
 
 DEPENDENCIES_OK=true
 
-# Check Joplin CLI
+# Check Joplin CLI (legacy/fallback only)
 if check_command joplin; then
     JOPLIN_VERSION=$(joplin version 2>/dev/null || echo "unknown")
-    print_info "Joplin CLI version: $JOPLIN_VERSION"
+    print_info "Joplin CLI version: $JOPLIN_VERSION (legacy/fallback only)"
 else
-    print_error "Joplin CLI is required but not installed"
-    echo "  Install with: npm install -g joplin"
-    echo "  See: https://joplinapp.org/terminal/"
+    print_warning "Joplin CLI is not installed"
+    echo "  Base mode uses Joplin Desktop Data API and does not require Joplin CLI."
+    echo "  Install Joplin CLI only if you intentionally use legacy/fallback workflows."
+fi
+
+echo ""
+
+# Check curl
+if check_command curl; then
+    CURL_VERSION=$(curl --version 2>/dev/null | head -n 1 || echo "unknown")
+    print_info "$CURL_VERSION"
+else
+    print_error "curl is required for Joplin Desktop Data API"
+    if [[ "$OS_NAME" == "macOS" ]]; then
+        echo "  curl is usually preinstalled on macOS"
+    elif [[ "$OS_NAME" == "Linux" ]]; then
+        echo "  Install with: sudo apt install curl  (Debian/Ubuntu)"
+        echo "            or: sudo yum install curl  (RHEL/CentOS)"
+    fi
     DEPENDENCIES_OK=false
 fi
 
@@ -287,13 +303,22 @@ else
         cat > "$CONFIG_FILE" << 'EOF'
 # Joplin Dev Workflow Configuration
 NOTEBOOK_DAILY="Daily Notes"
+NOTEBOOK_DAILY_ID=""
 NOTEBOOK_POST="Blog Posts"
+NOTEBOOK_POST_ID=""
 NOTEBOOK_WEEKLY="Weekly Reviews"
+NOTEBOOK_WEEKLY_ID=""
 TEMPLATE_TAGS_TIL="#til #daily"
 TEMPLATE_TAGS_LEARN="#article #draft"
 TEMPLATE_TAGS_WEEKLY="#weekly #review"
 DATE_FORMAT="%Y-%m-%d"
 TIME_FORMAT="%H:%M"
+JOPLIN_WRITE_ADAPTER="data_api"
+JOPLIN_API_BASE_URL=""
+JOPLIN_API_TOKEN=""
+JOPLIN_API_PORT_START="41184"
+JOPLIN_API_PORT_END="41194"
+JOPLIN_API_TIMEOUT="5"
 AUTO_SYNC="true"
 EOF
         print_success "Created default configuration: $CONFIG_FILE"
@@ -334,31 +359,27 @@ if [[ "$OS_NAME" == "Linux" ]]; then
 fi
 
 # --------------------------------------------
-# Create Joplin notebooks
+# Joplin Desktop setup reminder
 # --------------------------------------------
 
-echo "📓 Checking Joplin notebooks..."
+echo "📓 Joplin Desktop Data API setup..."
 echo ""
 
-# Check if Joplin is configured
-if joplin status >/dev/null 2>&1; then
-    print_info "Joplin is configured and running"
-    echo ""
-    echo "  The following notebooks should exist:"
-    echo "    • Daily Notes"
-    echo "    • Blog Posts"
-    echo "    • Weekly Reviews"
-    echo ""
-    echo "  Create them using Joplin CLI or Desktop if they don't exist:"
-    echo "    ${BLUE}joplin mkbook \"Daily Notes\"${NC}"
-    echo "    ${BLUE}joplin mkbook \"Blog Posts\"${NC}"
-    echo "    ${BLUE}joplin mkbook \"Weekly Reviews\"${NC}"
-else
-    print_warning "Joplin CLI is not configured yet"
-    echo ""
-    echo "  Please run ${BLUE}joplin${NC} to set up Joplin CLI first"
-    echo "  Then create the required notebooks"
-fi
+print_info "Base mode writes through Joplin Desktop Web Clipper/Data API"
+echo ""
+echo "  In Joplin Desktop:"
+echo "    1. Open Tools > Options > Web Clipper"
+echo "    2. Enable the Web Clipper service"
+echo "    3. Copy the authorization token into:"
+echo "       ${BLUE}${CONFIG_FILE}${NC}"
+echo ""
+echo "  The following notebooks should exist in Joplin Desktop:"
+echo "    • Daily Notes"
+echo "    • Blog Posts"
+echo "    • Weekly Reviews"
+echo ""
+echo "  If notebook titles are duplicated, set NOTEBOOK_DAILY_ID,"
+echo "  NOTEBOOK_POST_ID, and NOTEBOOK_WEEKLY_ID in the config file."
 
 echo ""
 
@@ -374,15 +395,16 @@ echo ""
 
 echo "📝 Quick Start:"
 echo ""
-echo "  1. Create Joplin notebooks (if not exists):"
-echo "     ${BLUE}joplin mkbook \"Daily Notes\"${NC}"
-echo "     ${BLUE}joplin mkbook \"Blog Posts\"${NC}"
-echo "     ${BLUE}joplin mkbook \"Weekly Reviews\"${NC}"
+echo "  1. Start Joplin Desktop and enable Web Clipper/Data API"
+echo "     ${BLUE}Tools > Options > Web Clipper > Enable Web Clipper Service${NC}"
 echo ""
-echo "  2. Copy content to clipboard:"
+echo "  2. Put your Joplin Data API token in:"
+echo "     ${BLUE}${CONFIG_FILE}${NC}"
+echo ""
+echo "  3. Copy content to clipboard:"
 echo "     ${BLUE}echo \"Your learning notes\" | pbcopy${NC}"
 echo ""
-echo "  3. Run a command:"
+echo "  4. Run a command:"
 echo "     ${BLUE}learn \"Understanding React Hooks\"${NC}"
 echo "     ${BLUE}til \"JavaScript Closures\"${NC}"
 echo "     ${BLUE}weekly \"W07 Learning Summary\"${NC}"

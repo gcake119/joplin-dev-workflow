@@ -9,7 +9,7 @@
 | 發布日期 | 2026-02-16 |
 | 文件撰寫日期 | 2026-02-18 |
 | 狀態 | Released |
-| 目標使用者 | 使用 Joplin CLI 的開發者、技術學習者 |
+| 目標使用者 | 使用 Joplin Desktop 並從終端機捕捉筆記的開發者、技術學習者 |
 | 授權 | MIT License |
 
 ---
@@ -17,11 +17,11 @@
 ## 1. 專案概述
 
 ### 1.1 專案目標
-為開發者提供**純 CLI 的學習筆記工作流工具**，支援從終端機快速捕捉學習內容到 Joplin，無需打開 GUI 應用程式，實現無縫的學習記錄體驗。
+為開發者提供**終端機快捷命令 + Joplin Desktop Data API** 的學習筆記工作流工具，支援從終端機快速捕捉學習內容到 Joplin Desktop，並由 Joplin Desktop 作為主要筆記環境與同步管理入口。
 
 ### 1.2 核心價值主張
 - **剪貼簿優先**：節省 AI API 配額，從 Copilot Chat/Perplexity 複製內容後直接建立筆記
-- **零中斷工作流**：完全在終端機操作，不需切換到桌面應用
+- **低中斷工作流**：從終端機操作，寫入 Joplin Desktop Data API，之後回到 Desktop 檢視與同步
 - **結構化筆記**：自動添加元數據、標籤、模板
 - **多設備同步**：透過 Joplin 原生同步功能（如 Joplin Cloud）
 
@@ -49,8 +49,9 @@
 | 層級 | 技術 | 版本 | 用途 |
 |------|------|------|------|
 | **Shell** | Bash | 4.0+ | 腳本執行環境 |
-| **筆記系統** | Joplin CLI | Latest | 筆記 CRUD 操作 |
-| **JSON 處理** | jq | 1.6+ | 解析 Joplin API 回應 |
+| **筆記系統** | Joplin Desktop Data API | Latest | 筆記 CRUD 操作 |
+| **HTTP** | curl | OS package | 呼叫 Joplin Data API |
+| **JSON 處理** | jq | 1.6+ | 解析 Joplin Data API 回應 |
 | **剪貼簿** | pbcopy/pbpaste (macOS)<br>xclip (Linux) | - | 讀取/寫入剪貼簿 |
 | **系統** | macOS / Linux / WSL | - | 執行平台 |
 
@@ -174,15 +175,15 @@ learn "Article Title"
 - 系統剪貼簿（透過 `pbpaste` 或 `xclip`）
 
 **處理流程**：
-1. 檢查依賴（joplin CLI、剪貼簿指令）
+1. 檢查依賴（Joplin Desktop Data API、token、curl、jq、剪貼簿指令）
 2. 載入配置檔（如存在）
 3. 讀取剪貼簿內容
 4. 驗證剪貼簿非空
-5. 切換到目標筆記本（`NOTEBOOK_POST`）
-6. 建立筆記並設定標題
+5. 解析目標筆記本為 Data API folder ID（`NOTEBOOK_POST_ID` 或 `NOTEBOOK_POST`）
+6. 透過 Data API 建立筆記並設定標題
 7. 構建筆記主體（包含元數據、內容、TODO 清單）
 8. 寫入筆記內容
-9. 執行同步（如啟用 `AUTO_SYNC`）
+9. 顯示 Desktop sync 狀態提示（如啟用 `AUTO_SYNC`）
 10. 顯示成功訊息和筆記資訊
 
 **生成的筆記結構**：
@@ -209,7 +210,7 @@ learn "Article Title"
 - `TEMPLATE_TAGS_LEARN`：自動添加的標籤（預設：`#article #draft`）
 - `DATE_FORMAT`：日期格式（預設：`%Y-%m-%d`）
 - `TIME_FORMAT`：時間格式（預設：`%H:%M`）
-- `AUTO_SYNC`：自動同步開關（預設：`true`）
+- `AUTO_SYNC`：Desktop sync 提示開關（預設：`true`）
 
 **錯誤處理**：
 - 剪貼簿空白 → 提示使用方法
@@ -249,8 +250,8 @@ til "Concept Name"
 3. 讀取剪貼簿內容
 4. 驗證剪貼簿非空
 5. 計算今日筆記標題（使用 `DAILY_NOTE_TITLE_TEMPLATE`）
-6. 切換到 Daily Notes 筆記本
-7. 搜尋今日筆記
+6. 解析 Daily Notes 為 Data API folder ID
+7. 在該 folder 內搜尋今日筆記
 8. **如果筆記存在**：
    - 讀取現有內容
    - 在末尾追加新 TIL 區塊
@@ -258,7 +259,7 @@ til "Concept Name"
 9. **如果筆記不存在**：
    - 建立新筆記
    - 寫入完整結構（含元數據）
-10. 執行同步
+10. 顯示 Desktop sync 狀態提示
 11. 顯示成功訊息
 
 **生成的筆記結構（新建）**：
@@ -334,11 +335,11 @@ weekly "Week Title"
    - 計算本週一日期
    - 計算本週日日期
    - 支援 macOS 和 Linux 的 `date` 指令差異
-6. 切換到 Weekly Reviews 筆記本
-7. 建立筆記
+6. 解析 Weekly Reviews 為 Data API folder ID
+7. 透過 Data API 建立筆記
 8. 構建筆記內容（包含週範圍、摘要、統計模板）
 9. 寫入內容
-10. 執行同步
+10. 顯示 Desktop sync 狀態提示
 11. 顯示成功訊息
 
 **生成的筆記結構**：
@@ -428,8 +429,8 @@ fi
 | `TIME_FORMAT` | `%H:%M` | 時間格式 | 所有 |
 | `WEEK_DATE_FORMAT` | `%Y-%m-%d` | 週日期格式 | `weekly` |
 | `DAILY_NOTE_TITLE_TEMPLATE` | `{DATE} Daily Notes` | 每日筆記標題模板 | `til` |
-| `AUTO_SYNC` | `true` | 自動同步開關 | 所有 |
-| `SYNC_TIMEOUT` | `30` | 同步超時（秒） | 所有 |
+| `AUTO_SYNC` | `true` | Desktop sync 提示開關 | 所有 |
+| `SYNC_TIMEOUT` | `30` | legacy/fallback adapter 保留值 | legacy |
 | `DEBUG` | `false` | 除錯模式 | 所有 |
 
 **配置範例**：
@@ -518,28 +519,17 @@ See: docs/usage.md for detailed examples
 
 ---
 
-#### 3.2.4 自動同步
+#### 3.2.4 Desktop-managed sync 提示
 
-**同步邏輯**：
-```bash
-if [ "$AUTO_SYNC" = "true" ]; then
-    echo ""
-    echo "⏳ Syncing..."
-    if joplin sync 2>&1 | grep -q "Completed\|完成"; then
-        print_success "Sync complete!"
-    else
-        echo "⚠️  Sync may have issues (check 'joplin sync' manually)"
-    fi
-fi
-```
+Data API base mode 寫入本機 Joplin Desktop。`AUTO_SYNC=true` 表示命令成功後顯示 Desktop sync 提醒，不代表命令會執行 Joplin CLI sync。雲端同步狀態由 Joplin Desktop 的同步設定與狀態管理。
 
 **支援語言**：
 - 英文：`Completed`
 - 中文：`完成`
 
-**同步時機**：
+**提示時機**：
 - 筆記建立/更新成功後
-- 僅在 `AUTO_SYNC=true` 時執行
+- 僅在 `AUTO_SYNC=true` 時顯示 Desktop sync 提醒
 
 ---
 
@@ -607,8 +597,7 @@ Available notebooks:
   Inbox
   Projects
 
-Create notebook with:
-  joplin mkbook "Daily Notes"
+Create the notebook in Joplin Desktop, or configure NOTEBOOK_DAILY_ID.
 
 Or configure different notebook in:
   ~/.config/joplin-workflow/config
@@ -1034,9 +1023,9 @@ weekly "W07 前端開發學習週報"
 
 ### 9.3 Joplin 版本
 
-- **Joplin CLI**: Latest (透過 npm)
-- **Joplin Desktop**: 任何版本（可選）
-- **API 版本**: 使用 Joplin CLI 命令列介面，不直接呼叫 API
+- **Joplin Desktop**: 需啟用 Web Clipper service/Data API
+- **Joplin CLI**: legacy/fallback only，不是 base mode 必要依賴
+- **API 版本**: 使用 Joplin Desktop Data API
 
 ---
 
@@ -1069,8 +1058,8 @@ weekly "W07 前端開發學習週報"
 
 ### 11.1 技術限制
 
-1. **純 CLI 操作**：無 GUI，不適合非技術使用者
-2. **依賴 Joplin**：必須安裝 Joplin CLI
+1. **終端機快捷命令**：輸入與操作以 CLI 為主，不適合非技術使用者
+2. **依賴 Joplin Desktop**：必須啟用 Web Clipper service/Data API 並設定 token
 3. **剪貼簿依賴**：輸入必須透過剪貼簿
 4. **同步依賴 Joplin**：不提供獨立同步機制
 5. **單一使用者**：非多使用者協作設計
@@ -1217,7 +1206,7 @@ WEEK_DATE_FORMAT="%Y-%m-%d"
 # TIL 筆記標題
 DAILY_NOTE_TITLE_TEMPLATE="{DATE} Daily Notes"
 
-# 自動同步
+# Desktop sync 提示
 AUTO_SYNC="true"
 SYNC_TIMEOUT="30"
 
