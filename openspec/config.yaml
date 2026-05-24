@@ -1,0 +1,146 @@
+schema: spec-driven
+
+context: |
+  專案：joplin-dev-workflow
+
+  這是一個以 Joplin Desktop 為基本前提、透過 Joplin Data REST API 寫入筆記的
+  開發者學習工作流工具。Clipboard 仍是低摩擦輸入來源，但產品定位不再是
+  CLI-only；核心價值是讓使用者在 Joplin Desktop 作為主要筆記環境時，仍能從
+  終端機/VS Code 快速捕捉內容、由 AI agent 輔助整理，並寫回 Joplin。
+
+  技術堆疊與執行環境：
+  - 主要語言是 Bash。
+  - 主要執行環境是 macOS；Linux/WSL 應維持相容但目前不是主要驗證平台。
+  - Base mode 依賴 Joplin Desktop、啟用的 Web Clipper service/Data API、
+    API token、系統剪貼簿命令與 HTTP/JSON 工具。
+  - 本機不再要求安裝 Joplin CLI；若保留 CLI 支援，應視為 legacy/fallback adapter。
+  - `jq` 應作為 JSON 處理依賴，用於解析 Joplin Data API 回應。
+  - 需支援偵測 Data API port，預設可從 `http://localhost:41184` 起檢查
+    `/ping`，並允許使用者明確設定 API base URL。
+
+  核心指令：
+  - `bin/learn "Article Title"`：從剪貼簿讀取內容，在 `NOTEBOOK_POST`
+    指定的筆記本建立技術文章草稿，預設筆記本是 `Blog Posts`。Base mode
+    應透過 Data API 將預設筆記本設定解析為 folder ID 並建立 note。
+  - `bin/til ["Concept Name"]`：從剪貼簿讀取內容，追加到當日 TIL 筆記；
+    未提供標題時用剪貼簿第一行作為概念名稱。預設筆記本是 `Daily Notes`。
+    Base mode 應先解析 Daily Notes 的 folder ID，再透過 Data API 在該 folder
+    搜尋當日 note、讀取 body 並更新內容。
+  - `bin/weekly "Week Title"`：從剪貼簿讀取週摘要，建立週回顧筆記，並依
+    週一到週日自動計算日期範圍。預設筆記本是 `Weekly Reviews`。Base mode
+    應透過 Data API 將預設筆記本設定解析為 folder ID 並建立 note。
+
+  模式邊界：
+  - Desktop Data API mode 是新的 base mode，三個核心指令都必須能在沒有 AI
+    provider 的情況下執行，但需要 Joplin Desktop 的 Data API 可用。
+  - Clipboard 是輸入來源，不是產品架構邊界；base mode 的寫入路徑是 Data API。
+  - CLI adapter 若存在，只能作為 legacy/fallback，不能再被描述為主要使用路徑。
+  - AI generation mode 是單次命令式產生：輸入明確、輸出明確，例如從當日 TIL
+    產生文章草稿或週報草稿。
+  - AI agent mode 是可選的多步驟 orchestration：收集上下文、判斷任務意圖、
+    依筆記內容語意擬定筆記標題、生成草稿、要求確認、寫入 Joplin、回報結果。
+  - 不要把 AI generation mode 與 AI agent mode 混寫成同一種能力；前者是工具，
+    後者是工作流控制層。
+
+  AI agent 模式：
+  - Agent 可以從剪貼簿、當日 TIL、近期 Joplin 筆記、git commit 摘要或使用者
+    指定檔案收集上下文。
+  - Agent mode 的預設筆記標題應由 LLM 根據筆記內容語意擬定，而不是只依賴
+    使用者命令參數或剪貼簿第一行。
+  - Agent 擬定的標題應與草稿一起呈現給使用者確認；若模型無法產生合理標題，
+    應使用可解釋的 fallback，例如使用第一行摘要、日期模板或要求使用者補標題。
+  - Agent 應先產生可審閱草稿或操作計畫，再寫入 Joplin；除非有明確設定與使用者
+    授權，不應靜默修改既有筆記。
+  - Agent 寫入筆記應透過 Joplin Data API adapter；Joplin Desktop 仍是筆記資料
+    的主要操作環境與同步管理入口。
+  - Agent 需要追蹤來源、產出類型、目標筆記本、確認狀態、provider/model 設定與
+    執行結果。
+  - Agent 應支援 dry-run 或 draft-first 行為，讓使用者確認內容、目標與同步動作。
+
+  使用者設定檔：
+  - 腳本執行時讀取 `~/.config/joplin-workflow/config`。
+  - 範例與安裝來源在 `config/joplin-workflow.conf.example` 與 `install.sh`。
+  - 主要設定值包含：
+    `NOTEBOOK_DAILY`, `NOTEBOOK_POST`, `NOTEBOOK_WEEKLY`,
+    `TEMPLATE_TAGS_TIL`, `TEMPLATE_TAGS_LEARN`, `TEMPLATE_TAGS_WEEKLY`,
+    `DATE_FORMAT`, `TIME_FORMAT`, `WEEK_DATE_FORMAT`,
+    `DAILY_NOTE_TITLE_TEMPLATE`, `AUTO_SYNC`, `DEBUG`。
+  - 預設筆記本設定必須以 Data API 可操作的方式解析：優先支援 folder/notebook ID，
+    其次才用 notebook title 查找；實際寫入 note 時必須使用 Data API 的 `parent_id`。
+  - 若以 notebook title 查找，必須處理找不到、重名、多層 notebook hierarchy、
+    是否自動建立 notebook，以及 dry-run 時不得建立 notebook。
+  - 建議新增或保留可對應 Data API 的設定名稱，例如 `NOTEBOOK_DAILY_ID`,
+    `NOTEBOOK_POST_ID`, `NOTEBOOK_WEEKLY_ID`，或明確定義 title-to-folder-id
+    resolution 規則。
+  - Data API 相關設定應包含 `JOPLIN_API_BASE_URL`, `JOPLIN_API_TOKEN`,
+    `JOPLIN_API_PORT_START`, `JOPLIN_API_PORT_END`, `JOPLIN_API_TIMEOUT`,
+    `JOPLIN_WRITE_ADAPTER=data_api` 與 health check 行為。
+  - `AUTO_SYNC` 的語意需要重新定義：Data API 寫入本機 Joplin 資料後，同步到雲端
+    主要依賴 Joplin Desktop 的同步設定與狀態；若仍提供手動 sync，必須明確說明
+    其 adapter 與限制。
+  - AI 相關設定應與一般筆記本設定分區描述，例如 provider、model、API key 來源、
+    prompt template 目錄、cache/log 位置、dry-run 預設值與自動確認邊界。
+  - Joplin Data API token 與 AI API key 都不應寫入 repository；文件只能描述本機
+    環境變數或本機設定檔位置。
+
+  既有規格與文件：
+  - `docs/spec-v0.1.0.md` 是目前功能行為的詳細規格。
+  - `README.md` 是使用者入門與功能摘要。
+  - `docs/installation.md`, `docs/usage.md`, `docs/customization.md`,
+    `docs/workflows.md`, `docs/troubleshooting.md` 是使用者文件。
+  - `docs/spec-ai-auto-generation.md` 描述未來 AI 自動產生文件方向，尚非目前
+    三個 CLI 的既有行為。
+
+  產品邊界：
+  - Joplin Desktop 是基本前提，不再把 Desktop 描述為可選。
+  - Joplin Data API 是 base write path；Joplin CLI 不應再是必要安裝依賴。
+  - 目前三個核心指令不必直接串接 AI API；AI 是可逐步引入的整理與 agent 能力。
+  - 不要在沒有明確需求時改成 web app-first 或 cloud-first。
+  - 不要把未完成的未來 roadmap 寫成已實作功能。
+  - 不要讓 agent-first 取代 base capture；agent 應是可選增強，不是基本使用門檻。
+
+  品質要求：
+  - 維持小型、可讀、可直接執行的 shell script。
+  - 變更腳本行為時，同步更新 README、docs、範例設定與安裝流程中對應內容。
+  - 使用者可見訊息應清楚、可操作；錯誤訊息應提示下一步。
+  - 盡量避免把內部實作細節暴露給一般使用者，但 CLI 診斷訊息可保留必要技術細節。
+
+rules:
+  proposal:
+    - 使用繁體中文撰寫。
+    - 明確區分目前已實作行為、要改變的行為與非目標。
+    - 若變更涉及 `bin/learn`, `bin/til`, `bin/weekly` 任一腳本，需列出受影響的文件與設定範例。
+    - 涉及 base mode 的提案必須以 Joplin Desktop Data API 為主要寫入路徑，並說明是否保留 CLI fallback。
+    - AI 相關提案必須明確標示是 AI generation mode 還是 AI agent mode。
+    - AI agent 提案必須列出 agent 可自動執行與必須使用者確認的步驟。
+    - 不要把 roadmap 或構想描述成既有功能。
+  design:
+    - 先從 `docs/spec-v0.1.0.md` 與實際 `bin/*` 腳本對齊現況。
+    - 設計必須標明從現有 Joplin CLI 行為遷移到 Data API 的差異與相容策略。
+    - 說明 shell 相容性影響，尤其是 macOS `date -v`、Linux `date -d`、HTTP client 與 JSON parser 差異。
+    - 涉及設定檔時，指出哪些設定已被腳本讀取，哪些仍只是範例或未來保留。
+    - Data API 設計必須包含 port 探測、`/ping` health check、token 取得/設定、HTTP 錯誤、JSON 解析錯誤與 timeout。
+    - Notebook 選擇必須先解析為 Data API folder ID；名稱只能作為設定輸入或 fallback，不可在寫入時依賴隱含目前 notebook 狀態。
+    - Notebook 查找、folder ID resolution、note 建立、note 更新、tag 綁定與 dry-run 應走明確的 Data API helper/adapter，不要散落 curl 呼叫。
+    - 同步設計必須說明 Data API 寫入後與 Joplin Desktop sync 狀態的關係，不可沿用 `joplin sync` 的語意而不解釋。
+    - AI agent 設計必須標明 autonomous boundary：哪些步驟可自動執行，哪些步驟需要確認。
+    - AI provider、model、prompt template、cache、log、API key 來源不得混入一般筆記本設定；需要分區描述。
+    - AI agent 設計必須說明語意標題生成策略、標題確認流程與標題生成失敗時的 fallback。
+    - Agent 寫入 Joplin 前應保留 dry-run 或 draft-first 路徑，除非需求明確排除。
+    - Agent 錯誤處理要區分 provider 失敗、Joplin Data API 不可用、token 無效、上下文不足、模型輸出無效與使用者取消。
+    - 對使用者可見文案提出範例時，避免不必要的實作術語。
+  tasks:
+    - 以可驗證的小步驟拆分，避免把腳本、文件、安裝流程與測試混成單一大項。
+    - 每個會改變行為的任務都要包含最小驗證方式。
+    - 若需要改動使用者設定，加入更新 `config/joplin-workflow.conf.example` 與相關文件的任務。
+    - Base mode 遷移任務應拆分為 Data API 設定、health check、notebook/folder ID resolution、note create/update、錯誤處理、文件更新與 legacy CLI 清理。
+    - AI agent 任務應拆分為 provider 設定、上下文收集、草稿生成、確認流程、Joplin 寫入、同步與錯誤處理。
+    - 涉及 secrets、Joplin token 或 API key 的任務必須包含本機設定與文件驗證，不得要求提交真實 secret。
+  spec:
+    - 規格應使用 MUST/SHOULD 描述可驗收行為。
+    - 驗收情境要覆蓋成功路徑、缺少依賴、剪貼簿空白、筆記本不存在、筆記本重名、Data API 不可用、token 無效與同步狀態提示。
+    - Base mode 規格必須描述預設筆記本如何解析為 Data API folder ID，以及找不到或重名時的使用者提示。
+    - Base mode 規格必須描述不需要安裝 Joplin CLI，並列出 Joplin Desktop/Web Clipper service/Data API token 的前置條件。
+    - AI agent 規格必須覆蓋沒有 API key、provider 不可用、模型輸出空白或格式錯誤、上下文不足、使用者拒絕草稿、dry-run 不寫入與 auto-confirm 邊界。
+    - AI agent 規格必須描述 LLM 擬定的筆記標題、標題確認狀態、來源紀錄、目標筆記本與最終寫入結果。
+    - 不要用規格替代使用者操作文件；操作步驟應留在 README 或 docs。
