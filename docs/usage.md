@@ -33,6 +33,14 @@ til "Concept Name"
 # Create weekly review
 echo "Week summary" | pbcopy
 weekly "W07 Title"
+
+# Diagnose setup without writing
+joplin-workflow-doctor
+
+# Preview a write without creating notes or tags
+learn --dry-run "Article Title"
+til --dry-run "Concept Name"
+weekly --dry-run "W07 Title"
 ```
 
 ---
@@ -44,12 +52,36 @@ weekly "W07 Title"
 | `learn "Title"` | Technical article drafts | Blog Posts | Creates new note |
 | `til "Concept"` | Daily learning entries | Daily Notes | Appends to today's note |
 | `weekly "Title"` | Weekly reviews | Weekly Reviews | Creates new note |
+| `joplin-workflow-doctor` | Data API and setup checks | Configured targets | No writes by default |
 
 **Common Options**:
 - All commands read from clipboard (`pbpaste`)
 - All commands write through Joplin Desktop Data API
+- `--dry-run` validates clipboard, Data API reachability, and target resolution without note/tag/folder writes
 - `AUTO_SYNC=true` shows a Joplin Desktop sync reminder; cloud sync itself is handled by Joplin Desktop
 - All commands add metadata and templates
+
+## Setup and Preflight
+
+Use the doctor before the first real write or when behavior changes:
+
+```bash
+joplin-workflow-doctor
+```
+
+Default doctor mode checks `curl`, `jq`, the clipboard command, token presence, explicit base URL or localhost port probing, `/ping`, an authenticated Data API request, and the configured daily/post/weekly notebooks.
+
+Choose notebook setup explicitly:
+
+```bash
+# Use existing notebooks and persist resolved folder IDs. No folders are created.
+joplin-workflow-doctor --setup-existing
+
+# Create empty default notebooks and persist IDs. Refuses duplicate titles.
+joplin-workflow-doctor --setup-create-defaults
+```
+
+Folder IDs are preferred. Title fallback is useful for simple setups, but if the same notebook title appears more than once, the command fails and prints matching hierarchy paths so you can set the correct `NOTEBOOK_*_ID`.
 
 ---
 
@@ -62,7 +94,7 @@ Create technical article drafts in the "Blog Posts" notebook.
 #### Syntax
 
 ```bash
-learn "Article Title"
+learn [--dry-run] "Article Title"
 ```
 
 #### What It Does
@@ -125,6 +157,16 @@ cat my-notes.md | pbcopy
 learn "Understanding JavaScript Closures"
 ```
 
+**Example 5: Dry Run**
+
+```bash
+cat my-notes.md | pbcopy
+learn --dry-run "Understanding JavaScript Closures"
+
+# Reports the resolved Blog Posts notebook ID and intended note title.
+# Does not create notes or tags.
+```
+
 **Example 3: Multi-line Content**
 
 ```bash
@@ -178,7 +220,7 @@ Append Today I Learned entries to a daily note in "Daily Notes" notebook.
 #### Syntax
 
 ```bash
-til "Concept Name"
+til [--dry-run] ["Concept Name"]
 ```
 
 #### What It Does
@@ -187,6 +229,7 @@ til "Concept Name"
 2. Checks if today's note exists
    - **If exists**: Appends new entry at the end
    - **If not exists**: Creates new daily note
+   - **If duplicates exist in the daily folder**: Fails before writing
 3. Adds timestamp for each entry
 4. Writes through Joplin Desktop Data API and shows Desktop sync status guidance
 
@@ -260,6 +303,16 @@ til "CSS Grid fr Unit"
 # Output: 📌 Found today's note, appending...
 ```
 
+**Example 5: Dry Run**
+
+```bash
+echo "Promise.all() fails fast if any promise rejects" | pbcopy
+til --dry-run "Promise.all() Behavior"
+
+# Reports whether it would append to today's note or create it.
+# Does not update notes or create tags.
+```
+
 **Example 3: Documenting Debugging Solution**
 
 ```bash
@@ -319,7 +372,7 @@ Create structured weekly review notes in "Weekly Reviews" notebook.
 #### Syntax
 
 ```bash
-weekly "Week Title"
+weekly [--dry-run] "Week Title"
 ```
 
 #### What It Does
@@ -442,6 +495,16 @@ weekly "W09 Portfolio Project Sprint"
 # Copy response
 
 weekly "W10 Full-Stack Development Progress"
+```
+
+**Example 5: Dry Run**
+
+```bash
+pbcopy < weekly-summary.md
+weekly --dry-run "W10 Full-Stack Development Progress"
+
+# Reports the computed week range and resolved Weekly Reviews notebook ID.
+# Does not create notes or tags.
 ```
 
 #### When to Use `weekly`
@@ -605,35 +668,17 @@ til "Concept 3"
 ```
 
 **Backup Before Experimenting**
-```bash
-# Export before trying new workflows
-joplin export ~/backup/joplin-backup.jex
-```
+Use Joplin Desktop export before large manual reorganizations.
 
 ---
 
 ### Search & Review
 
 **Find Recent Notes**
-```bash
-# Last 5 blog posts
-joplin use "Blog Posts"
-joplin ls -l -n 5
-
-# This week's daily notes
-joplin use "Daily Notes"
-joplin ls | grep "2026-02-"
-```
+Use Joplin Desktop search or the VS Code Joplin extension to review recent notes in the target notebooks.
 
 **Full-Text Search**
-```bash
-# Search across all notes
-joplin search "React Hooks"
-
-# Search in specific notebook
-joplin use "Blog Posts"
-joplin search "JavaScript"
-```
+Use Joplin Desktop full-text search. The workflow commands write notes locally; search and editing remain in Joplin Desktop or your editor extension.
 
 ---
 
@@ -736,7 +781,7 @@ See [Customization Guide](customization.md) for details.
 **Tested Configuration**:
 - **OS**: macOS 26.2 (Tahoe)
 - **Shell**: zsh 5.9
-- **Joplin CLI**: 3.5.1
+- **Joplin Desktop**: Web Clipper/Data API enabled
 - **jq**: 1.7
 
 ---

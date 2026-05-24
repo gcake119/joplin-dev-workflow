@@ -1,0 +1,209 @@
+#!/bin/bash
+# Diagnose Joplin Desktop Data API base mode without writing data.
+
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    case "$SOURCE" in
+        /*) ;;
+        *) SOURCE="$DIR/$SOURCE" ;;
+    esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/joplin_data_api.sh
+source "$PROJECT_DIR/lib/joplin_data_api.sh"
+
+CONFIG_FILE="$HOME/.config/joplin-workflow/config"
+
+NOTEBOOK_DAILY="Daily Notes"
+NOTEBOOK_DAILY_ID=""
+NOTEBOOK_POST="Blog Posts"
+NOTEBOOK_POST_ID=""
+NOTEBOOK_WEEKLY="Weekly Reviews"
+NOTEBOOK_WEEKLY_ID=""
+JOPLIN_WRITE_ADAPTER="data_api"
+JOPLIN_API_BASE_URL="${JOPLIN_API_BASE_URL:-}"
+JOPLIN_API_TOKEN="${JOPLIN_API_TOKEN:-}"
+JOPLIN_API_PORT_START="${JOPLIN_API_PORT_START:-41184}"
+JOPLIN_API_PORT_END="${JOPLIN_API_PORT_END:-41194}"
+JOPLIN_API_TIMEOUT="${JOPLIN_API_TIMEOUT:-5}"
+CLIPBOARD_CMD="${CLIPBOARD_CMD:-}"
+DEBUG="${DEBUG:-false}"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+fi
+
+MODE="${1:-check}"
+
+if [ "$MODE" = "-h" ] || [ "$MODE" = "--help" ]; then
+    cat << EOF
+Usage: joplin-workflow-doctor
+
+Check Joplin Desktop Data API base mode without creating or updating notes.
+
+Setup:
+  joplin-workflow-doctor --setup-existing
+  joplin-workflow-doctor --setup-create-defaults
+EOF
+    exit 0
+fi
+
+config_escape_value() {
+    printf '%s' "$1" | sed 's/[\\"]/\\&/g'
+}
+
+config_set_value() {
+    local key="$1"
+    local value="$2"
+    local escaped tmp
+
+    escaped=$(config_escape_value "$value")
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    touch "$CONFIG_FILE"
+    tmp=$(mktemp)
+    awk -v key="$key" -v line="${key}=\"${escaped}\"" '
+        BEGIN { done = 0 }
+        $0 ~ "^" key "=" { print line; done = 1; next }
+        { print }
+        END { if (!done) print line }
+    ' "$CONFIG_FILE" > "$tmp"
+    mv "$tmp" "$CONFIG_FILE"
+}
+
+check_static_prerequisites() {
+    if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
+        jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
+        exit 1
+    fi
+
+    jwf_require_command curl
+    jwf_require_command jq
+    echo "tools: curl and jq found"
+
+    if ! jwf_clipboard_read >/dev/null; then
+        exit 1
+    fi
+    echo "clipboard: readable"
+}
+
+check_data_api() {
+    joplin_api_init
+    echo "data_api: ${JOPLIN_API_BASE_URL_RESOLVED}"
+
+    joplin_api_request GET "/folders?fields=id&limit=1" >/dev/null
+    echo "auth: token accepted"
+}
+
+resolve_targets() {
+    DAILY_FOLDER_ID=$(joplin_resolve_folder_id "$NOTEBOOK_DAILY_ID" "$NOTEBOOK_DAILY" "daily")
+    POST_FOLDER_ID=$(joplin_resolve_folder_id "$NOTEBOOK_POST_ID" "$NOTEBOOK_POST" "post")
+    WEEKLY_FOLDER_ID=$(joplin_resolve_folder_id "$NOTEBOOK_WEEKLY_ID" "$NOTEBOOK_WEEKLY" "weekly")
+}
+
+persist_target_ids() {
+    config_set_value NOTEBOOK_DAILY_ID "$DAILY_FOLDER_ID"
+    config_set_value NOTEBOOK_POST_ID "$POST_FOLDER_ID"
+    config_set_value NOTEBOOK_WEEKLY_ID "$WEEKLY_FOLDER_ID"
+}
+
+folder_title_exists() {
+    local title="$1"
+    local response count
+
+    response=$(joplin_api_collect_pages "/folders?fields=id,title,parent_id&limit=100") || return 1
+    count=$(printf '%s' "$response" | jq --arg title "$title" '[.items[] | select(.title == $title)] | length')
+    [ "$count" -gt 0 ]
+}
+
+create_default_folder() {
+    local label="$1"
+    local title="$2"
+    local response folder_id
+
+    response=$(joplin_create_folder "$title") || return 1
+    folder_id=$(printf '%s' "$response" | jq -r '.id // empty')
+    if [ -z "$folder_id" ]; then
+        jwf_error "Created ${label} notebook but could not read its folder ID."
+        return 1
+    fi
+
+    printf '%s' "$folder_id"
+}
+
+if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
+    jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
+    exit 1
+fi
+
+echo "Joplin Workflow Doctor"
+
+check_static_prerequisites
+check_data_api
+
+case "$MODE" in
+    check)
+        resolve_targets
+        echo "daily: ${NOTEBOOK_DAILY} (${DAILY_FOLDER_ID})"
+        echo "post: ${NOTEBOOK_POST} (${POST_FOLDER_ID})"
+        echo "weekly: ${NOTEBOOK_WEEKLY} (${WEEKLY_FOLDER_ID})"
+        echo "Doctor checks passed"
+        ;;
+    --setup-existing)
+        resolve_targets
+        persist_target_ids
+        echo "daily: ${NOTEBOOK_DAILY} (${DAILY_FOLDER_ID})"
+        echo "post: ${NOTEBOOK_POST} (${POST_FOLDER_ID})"
+        echo "weekly: ${NOTEBOOK_WEEKLY} (${WEEKLY_FOLDER_ID})"
+        echo "Existing notebooks configured"
+        ;;
+    --setup-create-defaults)
+        for title in "$NOTEBOOK_DAILY" "$NOTEBOOK_POST" "$NOTEBOOK_WEEKLY"; do
+            if folder_title_exists "$title"; then
+                jwf_error "Notebook already exists: $title"
+                echo "Use --setup-existing or change the configured notebook title before creating defaults." >&2
+                exit 1
+            fi
+        done
+
+        CREATED_SUMMARY=""
+        if ! DAILY_FOLDER_ID=$(create_default_folder daily "$NOTEBOOK_DAILY"); then
+            exit 1
+        fi
+        config_set_value NOTEBOOK_DAILY_ID "$DAILY_FOLDER_ID"
+        CREATED_SUMMARY="${CREATED_SUMMARY}daily ${NOTEBOOK_DAILY} ${DAILY_FOLDER_ID}
+"
+
+        if ! POST_FOLDER_ID=$(create_default_folder post "$NOTEBOOK_POST"); then
+            echo "Created before failure:" >&2
+            printf '%s' "$CREATED_SUMMARY" >&2
+            exit 1
+        fi
+        config_set_value NOTEBOOK_POST_ID "$POST_FOLDER_ID"
+        CREATED_SUMMARY="${CREATED_SUMMARY}post ${NOTEBOOK_POST} ${POST_FOLDER_ID}
+"
+
+        if ! WEEKLY_FOLDER_ID=$(create_default_folder weekly "$NOTEBOOK_WEEKLY"); then
+            echo "Created before failure:" >&2
+            printf '%s' "$CREATED_SUMMARY" >&2
+            exit 1
+        fi
+        config_set_value NOTEBOOK_WEEKLY_ID "$WEEKLY_FOLDER_ID"
+
+        echo "daily: ${NOTEBOOK_DAILY} (${DAILY_FOLDER_ID})"
+        echo "post: ${NOTEBOOK_POST} (${POST_FOLDER_ID})"
+        echo "weekly: ${NOTEBOOK_WEEKLY} (${WEEKLY_FOLDER_ID})"
+        echo "Default empty notebooks created"
+        ;;
+    *)
+        jwf_error "Unknown doctor mode: $MODE"
+        echo "Run joplin-workflow-doctor --help for usage." >&2
+        exit 1
+        ;;
+esac

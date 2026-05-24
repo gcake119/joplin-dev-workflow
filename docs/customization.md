@@ -715,11 +715,10 @@ cat ~/.config/joplin-workflow/config
 
 # Test with dry run (check output)
 echo "Test content" | pbcopy
-learn "Config Test"
+learn --dry-run "Config Test"
 
-# Check tags in created note
-joplin use "Blog Posts"
-joplin cat <note-id>
+# Check Data API and notebook resolution
+joplin-workflow-doctor
 ```
 
 ### Backup Configuration
@@ -758,12 +757,15 @@ bash -n ~/.config/joplin-workflow/config
 ### Wrong Notebook
 
 ```bash
-# Verify notebook exists
-joplin ls /
+# Verify configured targets without writing notes
+joplin-workflow-doctor
 
 # Check exact name (case-sensitive)
 NOTEBOOK_DAILY="Daily Notes"  # ✅ Correct
 NOTEBOOK_DAILY="daily notes"  # ❌ Wrong case
+
+# Prefer IDs when titles are duplicated or nested
+NOTEBOOK_DAILY_ID="0123456789abcdef0123456789abcdef"
 ```
 
 ---
@@ -773,7 +775,7 @@ NOTEBOOK_DAILY="daily notes"  # ❌ Wrong case
 **Configuration tested on**:
 - **OS**: macOS 26.2 (Tahoe)
 - **Shell**: zsh 5.9
-- **Joplin CLI**: 3.5.1
+- **Joplin Desktop**: Web Clipper/Data API enabled
 
 ---
 

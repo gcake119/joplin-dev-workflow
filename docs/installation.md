@@ -34,7 +34,6 @@ Complete installation guide for Joplin Dev Workflow across different platforms.
 
 | Tool | Purpose |
 |------|---------|
-| **Joplin CLI** | Legacy/fallback terminal workflows |
 | **VS Code** | Edit notes in editor (with Joplin extension) |
 | **Git** | Version control (for development) |
 
@@ -62,6 +61,7 @@ The installer will:
 - ✅ Install scripts via symlinks
 - ✅ Set up configuration file
 - ✅ Explain Joplin Desktop Web Clipper/Data API token setup
+- ✅ Install `joplin-workflow-doctor` for non-mutating setup checks
 - ✅ Configure clipboard support (Linux)
 
 ---
@@ -133,17 +133,10 @@ source ~/.bashrc
 # Update package list
 sudo apt update
 
-# Install Node.js and npm
-sudo apt install -y nodejs npm
+# Install curl, jq, and clipboard tool
+sudo apt install -y curl jq xclip
 
-# Install Joplin CLI
-sudo npm install -g joplin
-
-# Install jq
-sudo apt install -y jq
-
-# Install clipboard tool
-sudo apt install -y xclip
+# Install Joplin Desktop separately and enable Web Clipper/Data API
 ```
 
 ##### Step 2: Install Joplin Dev Workflow
@@ -165,17 +158,8 @@ source ~/.bashrc  # or ~/.zshrc if using zsh
 #### Fedora/RHEL/CentOS
 
 ```bash
-# Install Node.js
-sudo dnf install -y nodejs npm
-
-# Install Joplin CLI
-sudo npm install -g joplin
-
-# Install jq
-sudo dnf install -y jq
-
-# Install clipboard tool
-sudo dnf install -y xclip
+# Install curl, jq, and clipboard tool
+sudo dnf install -y curl jq xclip
 
 # Continue with standard installation
 git clone https://github.com/gcake119/joplin-dev-workflow.git
@@ -188,10 +172,7 @@ source ~/.bashrc
 
 ```bash
 # Install dependencies
-sudo pacman -S nodejs npm jq xclip
-
-# Install Joplin CLI
-sudo npm install -g joplin
+sudo pacman -S curl jq xclip
 
 # Continue with standard installation
 git clone https://github.com/gcake119/joplin-dev-workflow.git
@@ -234,10 +215,7 @@ wsl --install -d Ubuntu
 sudo apt update
 
 # Install dependencies
-sudo apt install -y nodejs npm jq xclip
-
-# Install Joplin CLI
-sudo npm install -g joplin
+sudo apt install -y curl jq xclip
 
 # Clone and install
 git clone https://github.com/gcake119/joplin-dev-workflow.git
@@ -289,7 +267,8 @@ cd joplin-dev-workflow
 ln -s "$(pwd)/bin/learn" ~/.local/bin/learn
 ln -s "$(pwd)/bin/til" ~/.local/bin/til
 ln -s "$(pwd)/bin/weekly" ~/.local/bin/weekly
-chmod +x ~/.local/bin/{learn,til,weekly}
+ln -s "$(pwd)/bin/joplin-workflow-doctor" ~/.local/bin/joplin-workflow-doctor
+chmod +x ~/.local/bin/{learn,til,weekly,joplin-workflow-doctor}
 ```
 
 ### Step 4: Copy Configuration
@@ -335,9 +314,21 @@ First-time Joplin Desktop setup:
 4. Copy the authorization token.
 5. Put it in `~/.config/joplin-workflow/config` as `JOPLIN_API_TOKEN`.
 
-### 2. Create Required Notebooks
+### 2. Choose Notebook Setup
 
-Create `Daily Notes`, `Blog Posts`, and `Weekly Reviews` in Joplin Desktop. If you already have duplicate notebook titles, copy each folder ID into `NOTEBOOK_DAILY_ID`, `NOTEBOOK_POST_ID`, and `NOTEBOOK_WEEKLY_ID` in the local config.
+Use one explicit setup path:
+
+```bash
+# Use notebooks that already exist in Joplin Desktop.
+# This resolves IDs and writes NOTEBOOK_*_ID values. It does not create folders.
+joplin-workflow-doctor --setup-existing
+
+# Or create empty default notebooks, then write NOTEBOOK_*_ID values.
+# This refuses to create duplicates if any default title already exists.
+joplin-workflow-doctor --setup-create-defaults
+```
+
+Folder IDs are preferred because notebook titles can be duplicated or nested under different parents. Title fallback is supported only when each target title is unique.
 
 ### 3. (Optional) Configure Joplin Sync
 
@@ -369,33 +360,37 @@ Test that everything works:
 ### 1. Check Commands Exist
 
 ```bash
-which learn til weekly
+which learn til weekly joplin-workflow-doctor
 # Should output: /Users/you/.local/bin/learn (etc.)
 ```
 
 ### 2. Check Dependencies
 
 ```bash
-joplin version
 jq --version
+curl --version
 pbpaste --help  # Should work on macOS, or show xclip help on Linux
 ```
 
-### 3. Run Test
+### 3. Run Doctor
+
+```bash
+joplin-workflow-doctor
+```
+
+The doctor checks the configured token, explicit base URL or localhost port probing, `/ping`, `curl`, `jq`, clipboard command, and target notebook resolution. It does not create notes or folders in default check mode.
+
+### 4. Run Dry Run
 
 ```bash
 # Copy test content
 echo "Test note content" | pbcopy
 
-# Create test note
-learn "Test Installation"
-
-# Check in Joplin
-joplin use "Blog Posts"
-joplin ls
+# Preview the write without creating notes or tags
+learn --dry-run "Test Installation"
 ```
 
-If you see "Test Installation" in the list, installation is successful! ✅
+If doctor passes and dry-run reports the target notebook ID, installation is ready.
 
 ---
 
@@ -409,6 +404,7 @@ To remove Joplin Dev Workflow:
 rm ~/.local/bin/learn
 rm ~/.local/bin/til
 rm ~/.local/bin/weekly
+rm ~/.local/bin/joplin-workflow-doctor
 ```
 
 ### 2. Remove Configuration
@@ -443,7 +439,7 @@ If you encounter issues during installation, see the [Troubleshooting Guide](tro
 
 Common issues:
 - [Command not found](troubleshooting.md#command-not-found)
-- [Joplin CLI not working](troubleshooting.md#joplin-cli-issues)
+- [Joplin Data API not responding](troubleshooting.md#joplin-data-api-is-not-responding)
 - [Clipboard not working](troubleshooting.md#clipboard-issues)
 - [Permission denied](troubleshooting.md#permission-issues)
 

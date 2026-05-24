@@ -81,6 +81,13 @@ test_api_invalid_json() {
     assert_contains "$(cat /tmp/jwf-test-err)" "invalid JSON" "invalid JSON is surfaced"
 }
 
+test_api_invalid_paginated_shape() {
+    fixture_reset invalid_shape
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    assert_fails "invalid paginated shape fails collection" joplin_api_collect_pages "/folders?fields=id,title,parent_id&limit=100"
+    assert_contains "$(cat /tmp/jwf-test-err)" "invalid response shape" "invalid paginated response shape is surfaced"
+}
+
 test_folder_resolution_by_id() {
     fixture_reset happy
     JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
@@ -97,6 +104,21 @@ test_folder_resolution_by_title() {
     assert_eq "daily-id" "$folder_id" "unique notebook title resolves"
 }
 
+test_folder_resolution_later_page() {
+    fixture_reset folder_later_page
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    local folder_id
+    folder_id=$(joplin_resolve_folder_id "" "Daily Notes" "daily")
+    assert_eq "daily-page-2" "$folder_id" "folder title resolves from later page"
+}
+
+test_folder_resolution_duplicate_across_pages() {
+    fixture_reset folder_duplicate_across_pages
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    assert_fails "cross-page duplicate title refuses write" joplin_resolve_folder_id "" "Daily Notes" "daily"
+    assert_contains "$(cat /tmp/jwf-test-err)" "Multiple notebooks" "cross-page duplicate notebook title is surfaced"
+}
+
 test_folder_resolution_missing_title() {
     fixture_reset missing_folder
     JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
@@ -109,6 +131,16 @@ test_folder_resolution_duplicate_title() {
     JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
     assert_fails "duplicate title refuses write" joplin_resolve_folder_id "" "Daily Notes" "daily"
     assert_contains "$(cat /tmp/jwf-test-err)" "Multiple notebooks" "duplicate notebook title is surfaced"
+}
+
+test_folder_resolution_hierarchy_duplicate_paths() {
+    fixture_reset folder_hierarchy_duplicate
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    assert_fails "same title under different parents refuses write" joplin_resolve_folder_id "" "Daily Notes" "daily"
+    local error_output
+    error_output=$(cat /tmp/jwf-test-err)
+    assert_contains "$error_output" "daily-work Work / Daily Notes" "duplicate diagnostics include first hierarchy path"
+    assert_contains "$error_output" "daily-personal Personal / Daily Notes" "duplicate diagnostics include second hierarchy path"
 }
 
 test_folder_resolution_invalid_id() {
@@ -153,6 +185,31 @@ test_note_lookup_duplicate() {
     assert_contains "$(cat /tmp/jwf-test-err)" "Multiple notes" "duplicate daily note is surfaced"
 }
 
+test_note_lookup_duplicate_across_pages() {
+    fixture_reset note_duplicate_across_pages
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    assert_fails "cross-page duplicate daily notes refuse update" joplin_find_note_by_title_in_folder "2026-05-23 Daily Notes" "daily-id"
+    assert_contains "$(cat /tmp/jwf-test-err)" "Multiple notes" "cross-page duplicate daily note is surfaced"
+}
+
+test_tag_lookup_later_page() {
+    fixture_reset tag_later_page
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    FAKE_CURL_LOG="/tmp/jwf-test-curl.log"
+    : > "$FAKE_CURL_LOG"
+    joplin_apply_tags "note-id" "#til" >/tmp/jwf-test-out 2>/tmp/jwf-test-err
+    local curl_calls
+    curl_calls=$(cat "$FAKE_CURL_LOG")
+    rm -f "$FAKE_CURL_LOG"
+    FAKE_CURL_LOG=""
+    assert_contains "$curl_calls" "/tags/tag-page-2/notes" "tag binding uses existing tag from later page"
+    if printf '%s' "$curl_calls" | grep -Fq "POST	http://fixture.local/tags?token=test-token"; then
+        echo "not ok - later-page tag lookup should not create duplicate tag" >&2
+        exit 1
+    fi
+    PASS_COUNT=$((PASS_COUNT + 1))
+}
+
 test_tag_binding_failure() {
     fixture_reset tag_fail
     JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
@@ -167,21 +224,44 @@ test_http_error() {
     assert_contains "$(cat /tmp/jwf-test-err)" "HTTP 500" "HTTP status is surfaced"
 }
 
+test_debug_redacts_token_from_response_snippet() {
+    fixture_reset http_error_token_body
+    JOPLIN_API_TOKEN="secret-token"
+    DEBUG=true
+    JOPLIN_API_BASE_URL_RESOLVED="http://fixture.local"
+    assert_fails "debug HTTP error still fails request" joplin_api_request GET "/folders?fields=id,title"
+    local error_output
+    error_output=$(cat /tmp/jwf-test-err)
+    if printf '%s' "$error_output" | grep -Fq "secret-token"; then
+        echo "not ok - debug output should redact token value" >&2
+        echo "$error_output" >&2
+        exit 1
+    fi
+    assert_contains "$error_output" "[REDACTED]" "debug output shows redacted token marker"
+}
+
 test_api_init_explicit_base_url
 test_api_init_port_probe
 test_api_init_unavailable
 test_api_init_missing_token
 test_api_invalid_json
+test_api_invalid_paginated_shape
 test_folder_resolution_by_id
 test_folder_resolution_by_title
+test_folder_resolution_later_page
+test_folder_resolution_duplicate_across_pages
 test_folder_resolution_missing_title
 test_folder_resolution_duplicate_title
+test_folder_resolution_hierarchy_duplicate_paths
 test_folder_resolution_invalid_id
 test_note_helpers
 test_note_lookup_outside_folder
 test_note_lookup_duplicate
+test_note_lookup_duplicate_across_pages
+test_tag_lookup_later_page
 test_tag_binding_failure
 test_http_error
+test_debug_redacts_token_from_response_snippet
 
 rm -f /tmp/jwf-test-out /tmp/jwf-test-err
 echo "ok - $PASS_COUNT data API adapter checks passed"

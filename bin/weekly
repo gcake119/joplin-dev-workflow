@@ -35,6 +35,7 @@ JOPLIN_API_PORT_START="${JOPLIN_API_PORT_START:-41184}"
 JOPLIN_API_PORT_END="${JOPLIN_API_PORT_END:-41194}"
 JOPLIN_API_TIMEOUT="${JOPLIN_API_TIMEOUT:-5}"
 CLIPBOARD_CMD=""
+DRY_RUN="false"
 
 if [ -f "$CONFIG_FILE" ]; then
     # shellcheck source=/dev/null
@@ -56,12 +57,18 @@ get_week_range() {
     fi
 }
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    cat << EOF
-Usage: weekly "Week Title"
+ARGS=()
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            cat << EOF
+Usage: weekly [--dry-run] "Week Title"
 
 Create a weekly review note with automatic Monday-to-Sunday date range.
 Content is read from clipboard and written through Joplin Desktop Data API.
+
+Options:
+  --dry-run  Resolve the target notebook and show the planned write without creating notes or tags.
 
 Configuration:
   Edit ~/.config/joplin-workflow/config to customize:
@@ -71,8 +78,19 @@ Configuration:
 
 See: docs/usage.md for detailed examples
 EOF
-    exit 0
-fi
+            exit 0
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${ARGS[@]}"
 
 if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
     jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
@@ -128,6 +146,17 @@ ${CLIPBOARD_CONTENT}
 
 ## Reflection & Improvements
 "
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "Dry run: no notes or tags were written."
+    echo "Would create weekly review"
+    echo "Title: ${TITLE}"
+    echo "Week: ${WEEK_START} ~ ${WEEK_END}"
+    echo "Notebook: ${NOTEBOOK_WEEKLY}"
+    echo "Notebook ID: ${WEEKLY_FOLDER_ID}"
+    echo "Tags: ${TEMPLATE_TAGS_WEEKLY}"
+    exit 0
+fi
 
 NOTE_RESPONSE=$(joplin_create_note "$TITLE" "$NOTE_BODY" "$WEEKLY_FOLDER_ID")
 NOTE_ID=$(printf '%s' "$NOTE_RESPONSE" | jq -r '.id // empty')

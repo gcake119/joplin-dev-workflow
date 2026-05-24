@@ -37,6 +37,13 @@ JOPLIN_API_TOKEN=""
 # Prefer notebook/folder IDs when possible. IDs avoid ambiguity when multiple
 # notebooks share the same title or live under different parent notebooks.
 # Leave IDs empty to fall back to notebook title lookup.
+#
+# First-time setup choices:
+#   joplin-workflow-doctor --setup-existing
+#     Resolve your existing notebooks and write NOTEBOOK_*_ID values.
+#   joplin-workflow-doctor --setup-create-defaults
+#     Create new empty Daily Notes, Blog Posts, and Weekly Reviews notebooks
+#     only when those titles do not already exist, then write NOTEBOOK_*_ID.
 
 # Notebook for daily TIL (Today I Learned) notes
 # Used by: til command

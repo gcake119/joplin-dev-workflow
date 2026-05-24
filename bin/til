@@ -35,19 +35,26 @@ JOPLIN_API_PORT_START="${JOPLIN_API_PORT_START:-41184}"
 JOPLIN_API_PORT_END="${JOPLIN_API_PORT_END:-41194}"
 JOPLIN_API_TIMEOUT="${JOPLIN_API_TIMEOUT:-5}"
 CLIPBOARD_CMD=""
+DRY_RUN="false"
 
 if [ -f "$CONFIG_FILE" ]; then
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 fi
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    cat << EOF
-Usage: til ["Concept Name"]
+ARGS=()
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            cat << EOF
+Usage: til [--dry-run] ["Concept Name"]
 
 Append a Today I Learned entry to today's daily note.
 Content is read from clipboard and written through Joplin Desktop Data API.
 If no title is given, the first line of the clipboard is used as the title.
+
+Options:
+  --dry-run  Resolve the target note/notebook and show whether TIL would append or create without writing notes or tags.
 
 Configuration:
   Edit ~/.config/joplin-workflow/config to customize:
@@ -58,8 +65,19 @@ Configuration:
 
 See: docs/usage.md for detailed examples
 EOF
-    exit 0
-fi
+            exit 0
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${ARGS[@]}"
 
 if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
     jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
@@ -102,6 +120,18 @@ NOTE_STATUS=$?
 set -e
 
 if [ "$NOTE_STATUS" -eq 0 ]; then
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "Dry run: no notes or tags were written."
+        echo "Would append to today's note"
+        echo "Concept: ${CONCEPT}"
+        echo "Daily note title: ${TODAY_TITLE}"
+        echo "Notebook: ${NOTEBOOK_DAILY}"
+        echo "Notebook ID: ${DAILY_FOLDER_ID}"
+        echo "Note ID: ${NOTE_ID}"
+        echo "Tags: ${TEMPLATE_TAGS_TIL}"
+        exit 0
+    fi
+
     echo "📌 Found today's note, appending..."
     EXISTING_BODY=$(joplin_get_note_body "$NOTE_ID")
     UPDATED_BODY="${EXISTING_BODY}${NEW_TIL_BLOCK}"
@@ -112,6 +142,17 @@ if [ "$NOTE_STATUS" -eq 0 ]; then
     echo "⏰ Time: ${CURRENT_TIME}"
     echo "🔗 Note ID: ${NOTE_ID}"
 elif [ "$NOTE_STATUS" -eq 2 ]; then
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "Dry run: no notes or tags were written."
+        echo "Would create today's note"
+        echo "Concept: ${CONCEPT}"
+        echo "Daily note title: ${TODAY_TITLE}"
+        echo "Notebook: ${NOTEBOOK_DAILY}"
+        echo "Notebook ID: ${DAILY_FOLDER_ID}"
+        echo "Tags: ${TEMPLATE_TAGS_TIL}"
+        exit 0
+    fi
+
     echo "📄 Today's note not found, creating..."
     NEW_NOTE_BODY="# ${TODAY_TITLE}
 

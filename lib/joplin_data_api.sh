@@ -9,9 +9,21 @@ jwf_error() {
     echo "❌ $1" >&2
 }
 
+jwf_redact_secrets() {
+    local message="$1"
+    local token
+    token=$(joplin_api_token 2>/dev/null || true)
+
+    if [ -n "$token" ]; then
+        message="${message//$token/[REDACTED]}"
+    fi
+
+    printf '%s' "$message"
+}
+
 jwf_debug() {
     if [ "${DEBUG:-false}" = "true" ]; then
-        echo "DEBUG: $1" >&2
+        echo "DEBUG: $(jwf_redact_secrets "$1")" >&2
     fi
 }
 
@@ -140,6 +152,40 @@ joplin_api_request() {
     printf '%s' "$JOPLIN_API_LAST_BODY"
 }
 
+joplin_api_path_with_page() {
+    local path="$1"
+    local page="$2"
+
+    if printf '%s' "$path" | grep -q '?'; then
+        printf '%s&page=%s' "$path" "$page"
+    else
+        printf '%s?page=%s' "$path" "$page"
+    fi
+}
+
+joplin_api_collect_pages() {
+    local path="$1"
+    local page=1
+    local response has_more items
+
+    items='[]'
+    while :; do
+        response=$(joplin_api_request GET "$(joplin_api_path_with_page "$path" "$page")") || return 1
+        if ! printf '%s' "$response" | jq -e 'has("items") and (.items | type == "array")' >/dev/null 2>&1; then
+            jwf_error "Joplin Data API returned an invalid response shape."
+            jwf_debug "Expected paginated response with items array on page $page."
+            return 1
+        fi
+
+        items=$(jq -cn --argjson existing "$items" --argjson response "$response" '$existing + $response.items')
+        has_more=$(printf '%s' "$response" | jq -r '.has_more // false')
+        [ "$has_more" = "true" ] || break
+        page=$((page + 1))
+    done
+
+    jq -cn --argjson items "$items" '{items: $items}'
+}
+
 joplin_api_ping() {
     local base_url="$1"
     local timeout="${JOPLIN_API_TIMEOUT:-5}"
@@ -175,6 +221,7 @@ joplin_api_init() {
     start_port="${JOPLIN_API_PORT_START:-41184}"
     end_port="${JOPLIN_API_PORT_END:-41194}"
     port="$start_port"
+    jwf_debug "Probing Joplin Data API ports ${start_port}-${end_port}."
 
     while [ "$port" -le "$end_port" ]; do
         base_url="http://localhost:${port}"
@@ -182,6 +229,7 @@ joplin_api_init() {
             JOPLIN_API_BASE_URL_RESOLVED="$base_url"
             return 0
         fi
+        jwf_debug "No /ping response at $base_url."
         port=$((port + 1))
     done
 
@@ -211,7 +259,7 @@ joplin_resolve_folder_id() {
         return 1
     fi
 
-    response=$(joplin_api_request GET "/folders?fields=id,title,parent_id&limit=100&page=1") || return 1
+    response=$(joplin_api_collect_pages "/folders?fields=id,title,parent_id&limit=100") || return 1
     matches=$(printf '%s' "$response" | jq --arg title "$title_value" '[.items[] | select(.title == $title)]')
     count=$(printf '%s' "$matches" | jq 'length')
 
@@ -224,7 +272,17 @@ joplin_resolve_folder_id() {
     if [ "$count" -gt 1 ]; then
         jwf_error "Multiple notebooks named '$title_value' were found."
         echo "Set the ${label} notebook ID in your local config to avoid writing to the wrong notebook." >&2
-        printf '%s' "$matches" | jq -r '.[] | "  - " + .id + " " + .title' >&2
+        printf '%s' "$response" | jq -r --arg title "$title_value" '
+            .items as $folders |
+            def folder_for($id): first($folders[] | select(.id == $id)) // null;
+            def folder_path($id):
+                (folder_for($id)) as $folder |
+                if $folder == null then $id
+                elif (($folder.parent_id // "") == "") then $folder.title
+                else (folder_path($folder.parent_id) + " / " + $folder.title)
+                end;
+            $folders[] | select(.title == $title) | "  - " + .id + " " + folder_path(.id)
+        ' >&2
         return 1
     fi
 
@@ -241,6 +299,14 @@ joplin_create_note() {
     payload=$(jq -n --arg title "$title" --arg body "$body" --arg parent_id "$parent_id" \
         '{title: $title, body: $body, parent_id: $parent_id}')
     joplin_api_request POST "/notes" "$payload"
+}
+
+joplin_create_folder() {
+    local title="$1"
+    local payload
+
+    payload=$(jq -n --arg title "$title" '{title: $title}')
+    joplin_api_request POST "/folders" "$payload"
 }
 
 joplin_get_note_body() {
@@ -263,7 +329,7 @@ joplin_find_note_by_title_in_folder() {
     local encoded_title response matches count
 
     encoded_title=$(joplin_api_urlencode "$title")
-    response=$(joplin_api_request GET "/search?query=${encoded_title}&type=note&fields=id,title,parent_id&limit=100") || return 1
+    response=$(joplin_api_collect_pages "/search?query=${encoded_title}&type=note&fields=id,title,parent_id&limit=100") || return 1
     matches=$(printf '%s' "$response" | jq --arg title "$title" --arg parent_id "$parent_id" \
         '[.items[] | select(.title == $title and .parent_id == $parent_id)]')
     count=$(printf '%s' "$matches" | jq 'length')
@@ -291,7 +357,7 @@ joplin_apply_tags() {
         [ -z "$title" ] && continue
 
         encoded=$(joplin_api_urlencode "$title")
-        response=$(joplin_api_request GET "/search?query=${encoded}&type=tag&fields=id,title&limit=100") || return 1
+        response=$(joplin_api_collect_pages "/search?query=${encoded}&type=tag&fields=id,title&limit=100") || return 1
         matches=$(printf '%s' "$response" | jq --arg title "$title" '[.items[] | select(.title == $title)]')
         count=$(printf '%s' "$matches" | jq 'length')
 

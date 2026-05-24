@@ -41,12 +41,15 @@ Traditional GUI note apps break the flow. **These CLI tools run from the termina
 | `learn "Title"` | Create technical article drafts | `Blog Posts` |
 | `til "Concept"` | Append to today's learning log | `Daily Notes` |
 | `weekly "Title"` | Generate weekly review template | `Weekly Reviews` |
+| `joplin-workflow-doctor` | Diagnose Data API and notebook setup | No writes by default |
 
 ### Smart Workflows
 
 - 🚀 **No context switching** - run from your terminal, content in clipboard
 - 📎 **Auto-append TIL entries** - multiple learnings in one daily note
 - 🏷️ **Pre-configured templates** - tags, metadata, and structure
+- 🧪 **Dry-run previews** - validate clipboard, Data API, and target notebooks without writing notes
+- 🩺 **Doctor checks** - diagnose token, base URL/port probing, `/ping`, `curl`, `jq`, clipboard, and notebook resolution
 - 🔄 **Desktop-managed sync** - notes are written locally, then Joplin Desktop handles cloud sync
 - 🖥️ **Cross-platform ready** - developed on macOS, Linux/Windows compatible
 
@@ -68,7 +71,6 @@ Traditional GUI note apps break the flow. **These CLI tools run from the termina
 
 | Tool | Purpose | When You Need It |
 |------|---------|------------------|
-| **Joplin CLI** | Legacy/fallback terminal workflows | Only if you intentionally use old CLI-only flows |
 | **VS Code Joplin Extension** | Edit notes in VS Code | Prefer VS Code over CLI/Desktop |
 | **xclip** (Linux) | Clipboard support | Auto-installed by `install.sh` |
 
@@ -93,7 +95,10 @@ source ~/.zshrc  # or ~/.bashrc
 1. Open Joplin Desktop.
 2. Enable **Tools > Options > Web Clipper > Enable Web Clipper Service**.
 3. Copy the authorization token into `~/.config/joplin-workflow/config` as `JOPLIN_API_TOKEN`.
-4. Create `Daily Notes`, `Blog Posts`, and `Weekly Reviews` in Joplin Desktop, or configure `NOTEBOOK_DAILY_ID`, `NOTEBOOK_POST_ID`, and `NOTEBOOK_WEEKLY_ID` when notebook titles are duplicated.
+4. Choose notebook setup:
+   - Use existing notebooks: create or select `Daily Notes`, `Blog Posts`, and `Weekly Reviews`, then run `joplin-workflow-doctor --setup-existing`.
+   - Create defaults: run `joplin-workflow-doctor --setup-create-defaults` to create empty default notebooks only when those titles do not already exist.
+5. Run `joplin-workflow-doctor` to verify the token, Data API service, clipboard command, and target notebook IDs.
 
 See [docs/installation.md](docs/installation.md) for detailed setup guides.
 
@@ -126,25 +131,20 @@ til "Array.reduce() Advanced Usage"
 
 # Start weekly review
 weekly "W07 Frontend Learning Summary"
+
+# Preview without writing notes or tags
+learn --dry-run "Understanding React Hooks"
+til --dry-run "Array.reduce() Advanced Usage"
+weekly --dry-run "W07 Frontend Learning Summary"
 ```
 
 ### 3. Access Your Notes
 
-**Option 1: Joplin CLI (always available)**
-```bash
-# View notes in terminal
-joplin use "Blog Posts"
-joplin ls
-
-# Read a note
-joplin cat <note-id>
-```
-
-**Option 2: Joplin Desktop (if installed)**
+**Option 1: Joplin Desktop**
 - Syncs automatically via Joplin Cloud
 - Visual interface for editing
 
-**Option 3: VS Code Joplin Extension (requires Desktop running)**
+**Option 2: VS Code Joplin Extension (requires Desktop running)**
 - Install extension: `rxliuli.joplin-vscode-plugin`
 - Refresh to see new notes
 
@@ -203,9 +203,18 @@ Edit `~/.config/joplin-workflow/config` to customize:
 
 ```bash
 # Notebook mappings (use your own notebook names)
+NOTEBOOK_DAILY_ID=""
 NOTEBOOK_DAILY="Daily Notes"
+NOTEBOOK_POST_ID=""
 NOTEBOOK_POST="Blog Posts"
+NOTEBOOK_WEEKLY_ID=""
 NOTEBOOK_WEEKLY="Weekly Reviews"
+
+# Joplin Desktop Data API
+JOPLIN_API_TOKEN=""
+JOPLIN_API_BASE_URL=""
+JOPLIN_API_PORT_START="41184"
+JOPLIN_API_PORT_END="41194"
 
 # Template tags
 TEMPLATE_TAGS_TIL="#til #daily"
@@ -221,6 +230,8 @@ TIME_FORMAT="%H:%M"
 - `Daily Notes` - For `til` command (TIL entries)
 - `Blog Posts` - For `learn` command (technical articles)
 - `Weekly Reviews` - For `weekly` command (weekly summaries)
+
+Notebook IDs are preferred. Title fallback works only when each target title is unique across the full notebook hierarchy.
 
 See [docs/customization.md](docs/customization.md) for template customization.
 
@@ -264,6 +275,7 @@ The `install.sh` script attempts to configure these automatically.
 - ✅ Clipboard-based content capture
 - ✅ Three core commands (learn, til, weekly)
 - ✅ Joplin Desktop Data API write path
+- ✅ Doctor and dry-run preflight checks
 - ✅ Desktop-managed sync reminder
 - ✅ Configurable templates
 
@@ -299,7 +311,7 @@ A: Clipboard approach saves premium AI API quotas, lets you review content befor
 A: Yes, both use Joplin Desktop as the local note environment. These scripts write through the same Data API family and leave editing to Joplin Desktop or your editor workflow.
 
 **Q: What if I don't have Joplin Desktop?**  
-A: Install Joplin Desktop first. Joplin CLI is now legacy/fallback only and is not the default write path.
+A: Install Joplin Desktop first. Base mode requires Joplin Desktop Data API and does not provide a CLI fallback.
 
 **Q: Does this work on Linux/Windows?**  
 A: The scripts should work on Linux (with `xclip`) and Windows WSL. Not tested yet - please report your experience!
@@ -331,7 +343,7 @@ This project was born from my experience in a **frontend bootcamp** where I was 
 - ⚡ Wanting to stay in the terminal/VS Code flow
 - 💰 Managing limited AI API request quotas
 
-Traditional note apps felt clunky. Copying AI responses manually wasted time. Joplin's CLI + these automation scripts + clipboard workflow solved all of these perfectly.
+Traditional note apps felt clunky. Copying AI responses manually wasted time. Joplin Desktop Data API plus these clipboard-first terminal commands solved the workflow without adding an AI provider.
 
 ---
 

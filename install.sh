@@ -114,18 +114,6 @@ echo ""
 
 DEPENDENCIES_OK=true
 
-# Check Joplin CLI (legacy/fallback only)
-if check_command joplin; then
-    JOPLIN_VERSION=$(joplin version 2>/dev/null || echo "unknown")
-    print_info "Joplin CLI version: $JOPLIN_VERSION (legacy/fallback only)"
-else
-    print_warning "Joplin CLI is not installed"
-    echo "  Base mode uses Joplin Desktop Data API and does not require Joplin CLI."
-    echo "  Install Joplin CLI only if you intentionally use legacy/fallback workflows."
-fi
-
-echo ""
-
 # Check curl
 if check_command curl; then
     CURL_VERSION=$(curl --version 2>/dev/null | head -n 1 || echo "unknown")
@@ -167,7 +155,7 @@ if [[ "$OS_NAME" == "Linux" ]]; then
         echo "  Installing xclip is recommended"
         echo "  Install with: sudo apt install xclip"
         echo ""
-        read -p "  Install xclip now? [y/N] " -n 1 -r
+        read -p "  Install xclip now? [y/N] " -n 1 -r || REPLY=""
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             if command -v apt-get >/dev/null 2>&1; then
@@ -228,7 +216,7 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     fi
     
     if [ -n "$SHELL_CONFIG" ]; then
-        read -p "  Add to $SHELL_CONFIG automatically? [y/N] " -n 1 -r
+        read -p "  Add to $SHELL_CONFIG automatically? [y/N] " -n 1 -r || REPLY=""
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo "" >> "$SHELL_CONFIG"
@@ -259,7 +247,7 @@ if [ ! -d "$SCRIPT_DIR/bin" ]; then
 fi
 
 # Create symlinks
-for script in learn til weekly; do
+for script in learn til weekly joplin-workflow-doctor; do
     SOURCE_FILE="$SCRIPT_DIR/bin/$script"
     TARGET_FILE="$INSTALL_DIR/$script"
     
@@ -380,6 +368,13 @@ echo "    • Weekly Reviews"
 echo ""
 echo "  If notebook titles are duplicated, set NOTEBOOK_DAILY_ID,"
 echo "  NOTEBOOK_POST_ID, and NOTEBOOK_WEEKLY_ID in the config file."
+echo ""
+echo "  To check the Data API setup without writing notes:"
+echo "    ${BLUE}joplin-workflow-doctor${NC}"
+echo ""
+echo "  To choose notebook setup explicitly:"
+echo "    ${BLUE}joplin-workflow-doctor --setup-existing${NC}"
+echo "    ${BLUE}joplin-workflow-doctor --setup-create-defaults${NC}"
 
 echo ""
 
@@ -408,6 +403,9 @@ echo "  4. Run a command:"
 echo "     ${BLUE}learn \"Understanding React Hooks\"${NC}"
 echo "     ${BLUE}til \"JavaScript Closures\"${NC}"
 echo "     ${BLUE}weekly \"W07 Learning Summary\"${NC}"
+echo ""
+echo "     Non-mutating preview:"
+echo "     ${BLUE}learn --dry-run \"Understanding React Hooks\"${NC}"
 echo ""
 echo "📚 Documentation:"
 echo "  • Configuration: ${CONFIG_FILE}"

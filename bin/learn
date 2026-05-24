@@ -34,18 +34,25 @@ JOPLIN_API_PORT_START="${JOPLIN_API_PORT_START:-41184}"
 JOPLIN_API_PORT_END="${JOPLIN_API_PORT_END:-41194}"
 JOPLIN_API_TIMEOUT="${JOPLIN_API_TIMEOUT:-5}"
 CLIPBOARD_CMD=""
+DRY_RUN="false"
 
 if [ -f "$CONFIG_FILE" ]; then
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 fi
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    cat << EOF
-Usage: learn "Article Title"
+ARGS=()
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            cat << EOF
+Usage: learn [--dry-run] "Article Title"
 
 Create a learning article in the configured Joplin notebook.
 Content is read from clipboard and written through Joplin Desktop Data API.
+
+Options:
+  --dry-run  Resolve the target notebook and show the planned write without creating notes or tags.
 
 Configuration:
   Edit ~/.config/joplin-workflow/config to customize:
@@ -56,8 +63,19 @@ Configuration:
 
 See: docs/usage.md for detailed examples
 EOF
-    exit 0
-fi
+            exit 0
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${ARGS[@]}"
 
 if [ "${JOPLIN_WRITE_ADAPTER:-data_api}" != "data_api" ]; then
     jwf_error "Only JOPLIN_WRITE_ADAPTER=data_api is supported by the default workflow."
@@ -106,6 +124,16 @@ ${CLIPBOARD_CONTENT}
 - [ ] Add resource links
 - [ ] Proofread and format
 "
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "Dry run: no notes or tags were written."
+    echo "Would create learning article"
+    echo "Title: ${TITLE}"
+    echo "Notebook: ${NOTEBOOK_POST}"
+    echo "Notebook ID: ${POST_FOLDER_ID}"
+    echo "Tags: ${TEMPLATE_TAGS_LEARN}"
+    exit 0
+fi
 
 NOTE_RESPONSE=$(joplin_create_note "$TITLE" "$NOTE_BODY" "$POST_FOLDER_ID")
 NOTE_ID=$(printf '%s' "$NOTE_RESPONSE" | jq -r '.id // empty')

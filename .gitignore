@@ -82,3 +82,5 @@ build/
 secrets.txt
 token.txt
 api-keys.txt
+.spectra/
+openspec/.vector-search.db*

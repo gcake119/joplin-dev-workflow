@@ -23,6 +23,8 @@ Effective note-taking is about **capturing knowledge at the right time** and **o
 
 The command layer runs in your terminal, but the write path is Joplin Desktop Data API. Keep Joplin Desktop running with Web Clipper enabled; notes are written locally first, and cloud sync follows your Joplin Desktop sync settings.
 
+Before adopting a workflow on a new machine, run `joplin-workflow-doctor`. For important captures, use `--dry-run` first to verify the clipboard, Data API, and target notebook without writing notes.
+
 ### Workflow Principles
 
 1. **Capture Fast** - Don't interrupt your flow
@@ -856,7 +858,7 @@ til "Mentoring: Teaching Closures Effectively"
 All workflows tested on:
 - **OS**: macOS 26.2 (Tahoe)
 - **Shell**: zsh 5.9
-- **Joplin CLI**: 3.5.1
+- **Joplin Desktop**: Web Clipper/Data API enabled
 
 ---
 
